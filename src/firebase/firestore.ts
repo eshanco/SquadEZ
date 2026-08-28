@@ -26,3 +26,8 @@ export const rsvpDoc = (teamId: string, eventId: string, playerId: string) =>
 
 export const lineupDoc = (teamId: string, eventId: string) =>
   doc(db, 'teams', teamId, 'events', eventId, 'lineup', 'lineup')
+
+export const formationsCollection = (teamId: string) =>
+  collection(db, 'teams', teamId, 'formations')
+export const formationDoc = (teamId: string, formationId: string) =>
+  doc(db, 'teams', teamId, 'formations', formationId)

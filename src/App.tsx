@@ -3,6 +3,7 @@ import { AppShell } from './components/layout/AppShell'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
 import { AuthProvider } from './contexts/AuthContext'
 import { TeamProvider } from './contexts/TeamContext'
+import { AttendancePage } from './routes/AttendancePage'
 import { EventDetailPage } from './routes/EventDetailPage'
 import { ForgotPasswordPage } from './routes/ForgotPasswordPage'
 import { LineupPage } from './routes/LineupPage'
@@ -44,6 +45,7 @@ export default function App() {
               <Route path="schedule/:eventId" element={<EventDetailPage />} />
               <Route path="schedule/:eventId/rsvp" element={<RsvpPage />} />
               <Route path="schedule/:eventId/lineup" element={<LineupPage />} />
+              <Route path="attendance" element={<AttendancePage />} />
               <Route path="settings" element={<TeamSettingsPage />} />
             </Route>
           </Route>

@@ -1,6 +1,7 @@
-import { addDoc, deleteDoc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { addDoc, deleteDoc, doc, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore'
 import { type FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { db } from '../firebase/config'
 import { eventDoc, eventsCollection } from '../firebase/firestore'
 import { useRsvps } from '../hooks/useRsvps'
 import { usePlayers } from '../hooks/usePlayers'
@@ -15,6 +16,24 @@ const emptyForm = {
   location: '',
   opponent: '',
   notes: '',
+  repeatWeekly: false,
+  repeatUntil: '',
+}
+
+const MAX_RECURRING_OCCURRENCES = 104 // 2 years of weekly events, a generous safety cap
+
+function weeklyOccurrenceStarts(firstStartAt: number, repeatUntilDate: string): number[] {
+  const untilEndOfDay = new Date(`${repeatUntilDate}T23:59:59`).getTime()
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+  const occurrences: number[] = []
+  for (
+    let start = firstStartAt;
+    start <= untilEndOfDay && occurrences.length < MAX_RECURRING_OCCURRENCES;
+    start += WEEK_MS
+  ) {
+    occurrences.push(start)
+  }
+  return occurrences
 }
 
 export function EventDetailPage() {
@@ -41,6 +60,8 @@ export function EventDetailPage() {
           location: data.location,
           opponent: data.opponent ?? '',
           notes: data.notes,
+          repeatWeekly: false,
+          repeatUntil: '',
         })
       }
       setLoading(false)
@@ -62,11 +83,28 @@ export function EventDetailPage() {
         notes: form.notes,
       }
       if (isNew) {
-        const ref = await addDoc(eventsCollection(teamId), {
-          ...payload,
-          createdAt: serverTimestamp(),
-        })
-        navigate(`/teams/${teamId}/schedule/${ref.id}`)
+        if (form.type === 'practice' && form.repeatWeekly && form.repeatUntil) {
+          const occurrenceStarts = weeklyOccurrenceStarts(payload.startAt, form.repeatUntil)
+          const duration = payload.endAt - payload.startAt
+          const batch = writeBatch(db)
+          for (const startAt of occurrenceStarts) {
+            const ref = doc(eventsCollection(teamId))
+            batch.set(ref, {
+              ...payload,
+              startAt,
+              endAt: startAt + duration,
+              createdAt: serverTimestamp(),
+            })
+          }
+          await batch.commit()
+          navigate(`/teams/${teamId}/schedule`)
+        } else {
+          const ref = await addDoc(eventsCollection(teamId), {
+            ...payload,
+            createdAt: serverTimestamp(),
+          })
+          navigate(`/teams/${teamId}/schedule/${ref.id}`)
+        }
       } else if (eventId) {
         await updateDoc(eventDoc(teamId, eventId), payload)
       }
@@ -140,6 +178,35 @@ export function EventDetailPage() {
             />
           </div>
         </div>
+
+        {isNew && form.type === 'practice' && (
+          <div className="rounded-md border border-slate-200 p-3">
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.repeatWeekly}
+                onChange={(e) => setForm((f) => ({ ...f, repeatWeekly: e.target.checked }))}
+              />
+              Repeats weekly (same day/time)
+            </label>
+            {form.repeatWeekly && (
+              <div className="mt-3">
+                <label className="mb-1 block text-sm font-medium text-slate-700">Until</label>
+                <input
+                  type="date"
+                  required
+                  value={form.repeatUntil}
+                  onChange={(e) => setForm((f) => ({ ...f, repeatUntil: e.target.value }))}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Creates a separate practice each week up to and including this date — each one
+                  can be edited or deleted individually afterward.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">Location</label>

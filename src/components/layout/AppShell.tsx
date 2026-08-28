@@ -25,6 +25,9 @@ export function AppShell() {
           <NavLink to={`/teams/${teamId}/schedule`} className={navLinkClass}>
             Schedule
           </NavLink>
+          <NavLink to={`/teams/${teamId}/attendance`} className={navLinkClass}>
+            Attendance
+          </NavLink>
           <NavLink to={`/teams/${teamId}/settings`} className={navLinkClass}>
             Settings
           </NavLink>

@@ -58,6 +58,10 @@ service cloud.firestore {
         allow read, write: if isTeamMember(teamId);
       }
 
+      match /formations/{formationId} {
+        allow read, write: if isTeamMember(teamId);
+      }
+
       match /events/{eventId} {
         allow read, write: if isTeamMember(teamId);
 
