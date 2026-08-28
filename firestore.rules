@@ -1,0 +1,52 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isTeamMember(teamId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid));
+    }
+
+    function isTeamOwner(teamId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid)).data.role == "owner";
+    }
+
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /teams/{teamId} {
+      allow read: if isTeamMember(teamId);
+      allow create: if isSignedIn();
+      allow update, delete: if isTeamOwner(teamId);
+
+      match /members/{memberId} {
+        allow read: if isTeamMember(teamId);
+        allow create, update, delete: if isTeamOwner(teamId);
+      }
+
+      match /players/{playerId} {
+        allow read, write: if isTeamMember(teamId);
+      }
+
+      match /events/{eventId} {
+        allow read, write: if isTeamMember(teamId);
+
+        match /rsvps/{playerId} {
+          allow read, write: if isTeamMember(teamId);
+        }
+
+        match /lineup/{lineupId} {
+          allow read, write: if isTeamMember(teamId);
+        }
+      }
+    }
+  }
+}
