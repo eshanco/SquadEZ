@@ -24,7 +24,7 @@ export function PlayerChip({
         isDragging ? 'opacity-40' : ''
       } ${compact ? 'w-full text-center' : ''}`}
     >
-      #{player.jerseyNumber} {player.lastName}
+      #{player.jerseyNumber} {player.firstName}
     </div>
   )
 }
