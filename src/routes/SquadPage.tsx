@@ -1,16 +1,16 @@
 import { Link, useParams } from 'react-router-dom'
 import { usePlayers } from '../hooks/usePlayers'
 
-export function RosterPage() {
+export function SquadPage() {
   const { teamId } = useParams<{ teamId: string }>()
   const { players, loading } = usePlayers(teamId)
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900">Roster</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Squad</h1>
         <Link
-          to={`/teams/${teamId}/roster/new`}
+          to={`/teams/${teamId}/squad/new`}
           className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
         >
           Add player
@@ -18,7 +18,7 @@ export function RosterPage() {
       </div>
 
       {loading ? (
-        <p className="text-slate-500">Loading roster…</p>
+        <p className="text-slate-500">Loading squad…</p>
       ) : players.length === 0 ? (
         <p className="text-slate-500">No players yet — add your first player.</p>
       ) : (
@@ -26,7 +26,7 @@ export function RosterPage() {
           {players.map((player) => (
             <li key={player.id}>
               <Link
-                to={`/teams/${teamId}/roster/${player.id}`}
+                to={`/teams/${teamId}/squad/${player.id}`}
                 className="flex items-center justify-between px-4 py-3 hover:bg-slate-50"
               >
                 <div>

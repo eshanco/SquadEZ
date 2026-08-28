@@ -18,7 +18,7 @@ export function TeamDashboardPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">{team?.name}</h1>
         <p className="text-sm text-slate-500">
-          {playersLoading ? '…' : `${players.length} players on roster`}
+          {playersLoading ? '…' : `${players.length} players on squad`}
         </p>
       </div>
 
@@ -55,10 +55,10 @@ export function TeamDashboardPage() {
 
       <div className="flex gap-3">
         <Link
-          to={`/teams/${teamId}/roster`}
+          to={`/teams/${teamId}/squad`}
           className="flex-1 rounded-lg border border-slate-200 bg-white p-4 text-center hover:border-emerald-400"
         >
-          Manage roster
+          Manage squad
         </Link>
         <Link
           to={`/teams/${teamId}/schedule`}

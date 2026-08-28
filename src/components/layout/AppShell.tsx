@@ -40,8 +40,8 @@ export function AppShell() {
           <NavLink to={`/teams/${teamId}`} end className={navLinkClass}>
             Dashboard
           </NavLink>
-          <NavLink to={`/teams/${teamId}/roster`} className={navLinkClass}>
-            Roster
+          <NavLink to={`/teams/${teamId}/squad`} className={navLinkClass}>
+            Squad
           </NavLink>
           <NavLink to={`/teams/${teamId}/schedule`} className={navLinkClass}>
             Schedule

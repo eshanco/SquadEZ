@@ -41,7 +41,7 @@ export function RsvpPage() {
     <div className="max-w-lg space-y-4">
       <h1 className="text-2xl font-semibold text-slate-900">RSVPs</h1>
       {players.filter((p) => p.active).length === 0 ? (
-        <p className="text-slate-500">No active players on the roster yet.</p>
+        <p className="text-slate-500">No active players on the squad yet.</p>
       ) : (
         <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
           {players

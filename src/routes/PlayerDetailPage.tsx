@@ -81,7 +81,7 @@ export function PlayerDetailPage() {
       } else if (playerId) {
         await updateDoc(playerDoc(teamId, playerId), payload)
       }
-      navigate(`/teams/${teamId}/roster`)
+      navigate(`/teams/${teamId}/squad`)
     } finally {
       setSaving(false)
     }
@@ -89,9 +89,9 @@ export function PlayerDetailPage() {
 
   const handleDelete = async () => {
     if (!teamId || !playerId || isNew) return
-    if (!confirm(`Remove ${form.firstName} ${form.lastName} from the roster?`)) return
+    if (!confirm(`Remove ${form.firstName} ${form.lastName} from the squad?`)) return
     await deleteDoc(playerDoc(teamId, playerId))
-    navigate(`/teams/${teamId}/roster`)
+    navigate(`/teams/${teamId}/squad`)
   }
 
   if (loading) return <p className="text-slate-500">Loading player…</p>
@@ -158,7 +158,7 @@ export function PlayerDetailPage() {
               checked={form.active}
               onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
             />
-            Active on roster
+            Active on squad
           </label>
         )}
 
@@ -176,7 +176,7 @@ export function PlayerDetailPage() {
               onClick={handleDelete}
               className="text-sm text-red-600 hover:underline"
             >
-              Remove from roster
+              Remove from squad
             </button>
           )}
         </div>

@@ -7,10 +7,10 @@ import { EventDetailPage } from './routes/EventDetailPage'
 import { LineupPage } from './routes/LineupPage'
 import { LoginPage } from './routes/LoginPage'
 import { PlayerDetailPage } from './routes/PlayerDetailPage'
-import { RosterPage } from './routes/RosterPage'
 import { RsvpPage } from './routes/RsvpPage'
 import { SchedulePage } from './routes/SchedulePage'
 import { SignupPage } from './routes/SignupPage'
+import { SquadPage } from './routes/SquadPage'
 import { TeamDashboardPage } from './routes/TeamDashboardPage'
 import { TeamSettingsPage } from './routes/TeamSettingsPage'
 import { TeamsListPage } from './routes/TeamsListPage'
@@ -36,8 +36,8 @@ export default function App() {
 
             <Route path="/teams/:teamId" element={<TeamLayout />}>
               <Route index element={<TeamDashboardPage />} />
-              <Route path="roster" element={<RosterPage />} />
-              <Route path="roster/:playerId" element={<PlayerDetailPage />} />
+              <Route path="squad" element={<SquadPage />} />
+              <Route path="squad/:playerId" element={<PlayerDetailPage />} />
               <Route path="schedule" element={<SchedulePage />} />
               <Route path="schedule/:eventId" element={<EventDetailPage />} />
               <Route path="schedule/:eventId/rsvp" element={<RsvpPage />} />
