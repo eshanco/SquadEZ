@@ -81,6 +81,12 @@ export function LineupPage() {
     )
   }
 
+  const copyFromPreviousPeriod = () => {
+    const previous = periods[selectedPeriodIndex - 1]
+    if (!previous) return
+    updateSelectedPeriod({ assignments: previous.assignments.map((a) => ({ ...a })) })
+  }
+
   const handleDragEnd = (event: DragEndEvent) => {
     if (!selectedFormation) return
     const activeId = String(event.active.id)
@@ -304,6 +310,14 @@ export function LineupPage() {
                 className="w-24 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
               />
             </div>
+            {selectedPeriodIndex > 0 && (
+              <button
+                onClick={copyFromPreviousPeriod}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+              >
+                Copy from {periods[selectedPeriodIndex - 1].label}
+              </button>
+            )}
           </div>
 
           <DndContext onDragEnd={handleDragEnd}>
