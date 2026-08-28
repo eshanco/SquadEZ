@@ -7,6 +7,7 @@ export function useTeam(teamId: string | undefined, uid: string | undefined) {
   const [team, setTeam] = useState<Team | null>(null)
   const [role, setRole] = useState<MemberRole | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
     if (!teamId) {
@@ -17,16 +18,28 @@ export function useTeam(teamId: string | undefined, uid: string | undefined) {
     }
 
     setLoading(true)
-    const unsubTeam = onSnapshot(teamDoc(teamId), (snap) => {
-      setTeam(snap.exists() ? ({ id: snap.id, ...snap.data() } as Team) : null)
-      setLoading(false)
-    })
+    setError(null)
+    const unsubTeam = onSnapshot(
+      teamDoc(teamId),
+      (snap) => {
+        setTeam(snap.exists() ? ({ id: snap.id, ...snap.data() } as Team) : null)
+        setLoading(false)
+      },
+      (err) => {
+        setError(err)
+        setLoading(false)
+      },
+    )
 
     let unsubMember = () => {}
     if (uid) {
-      unsubMember = onSnapshot(memberDoc(teamId, uid), (snap) => {
-        setRole(snap.exists() ? (snap.data().role as MemberRole) : null)
-      })
+      unsubMember = onSnapshot(
+        memberDoc(teamId, uid),
+        (snap) => {
+          setRole(snap.exists() ? (snap.data().role as MemberRole) : null)
+        },
+        (err) => setError(err),
+      )
     }
 
     return () => {
@@ -35,5 +48,5 @@ export function useTeam(teamId: string | undefined, uid: string | undefined) {
     }
   }, [teamId, uid])
 
-  return { team, role, loading }
+  return { team, role, loading, error }
 }

@@ -22,6 +22,19 @@ service cloud.firestore {
       allow write: if isSignedIn() && request.auth.uid == uid;
     }
 
+    // Collection-group queries (collectionGroup('members')) are matched
+    // against top-level wildcard rules like this one, NOT against the
+    // nested /teams/{teamId}/members/{memberId} rule below - Firestore
+    // does not extend a path-specific rule to a collection-group query
+    // across unknown parents. This covers exactly the "my teams" lookup
+    // (collectionGroup('members').where('uid','==', myUid)), since it only
+    // needs to check the field on the document being returned, no other
+    // reads. Firestore ORs together every rule matching a given path, so
+    // this adds to - never narrows - the nested rule below.
+    match /{path=**}/members/{memberId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
     match /teams/{teamId} {
       allow read: if isTeamMember(teamId);
       allow create: if isSignedIn();
@@ -29,6 +42,15 @@ service cloud.firestore {
 
       match /members/{memberId} {
         allow read: if isTeamMember(teamId);
+        // Bootstrap: the user who created the team may add themself as the
+        // first (owner) member, since no owner member doc exists yet to
+        // authorize that write. Once a member doc exists, only an existing
+        // owner may add/update/remove members.
+        allow create: if isSignedIn() &&
+          memberId == request.auth.uid &&
+          request.resource.data.role == "owner" &&
+          get(/databases/$(database)/documents/teams/$(teamId)).data.createdBy == request.auth.uid &&
+          !exists(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid));
         allow create, update, delete: if isTeamOwner(teamId);
       }
 

@@ -40,9 +40,13 @@ export function TeamSettingsPage() {
 
   useEffect(() => {
     if (!teamId) return
-    return onSnapshot(membersCollection(teamId), (snapshot) => {
-      setMembers(snapshot.docs.map((d) => d.data() as TeamMember))
-    })
+    return onSnapshot(
+      membersCollection(teamId),
+      (snapshot) => {
+        setMembers(snapshot.docs.map((d) => d.data() as TeamMember))
+      },
+      (err) => console.error('Failed to load team members:', err),
+    )
   }, [teamId])
 
   const handleSaveTeam = async (event: FormEvent) => {

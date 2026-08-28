@@ -6,6 +6,7 @@ import type { Rsvp } from '../types'
 export function useRsvps(teamId: string | undefined, eventId: string | undefined) {
   const [rsvps, setRsvps] = useState<Rsvp[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
     if (!teamId || !eventId) {
@@ -15,13 +16,21 @@ export function useRsvps(teamId: string | undefined, eventId: string | undefined
     }
 
     setLoading(true)
-    const unsubscribe = onSnapshot(rsvpsCollection(teamId, eventId), (snapshot) => {
-      setRsvps(snapshot.docs.map((d) => d.data() as Rsvp))
-      setLoading(false)
-    })
+    setError(null)
+    const unsubscribe = onSnapshot(
+      rsvpsCollection(teamId, eventId),
+      (snapshot) => {
+        setRsvps(snapshot.docs.map((d) => d.data() as Rsvp))
+        setLoading(false)
+      },
+      (err) => {
+        setError(err)
+        setLoading(false)
+      },
+    )
 
     return unsubscribe
   }, [teamId, eventId])
 
-  return { rsvps, loading }
+  return { rsvps, loading, error }
 }

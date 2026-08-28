@@ -7,7 +7,7 @@ import { useTeams } from '../hooks/useTeams'
 
 export function TeamsListPage() {
   const { user } = useAuthContext()
-  const { memberships, loading } = useTeams(user?.uid)
+  const { memberships, loading: teamsLoading, error: teamsError } = useTeams(user?.uid)
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [ageGroup, setAgeGroup] = useState('')
@@ -49,8 +49,12 @@ export function TeamsListPage() {
     <div className="mx-auto max-w-2xl px-4 py-8">
       <h1 className="mb-6 text-2xl font-semibold text-slate-900">My Teams</h1>
 
-      {loading ? (
+      {teamsLoading ? (
         <p className="text-slate-500">Loading teams…</p>
+      ) : teamsError ? (
+        <p className="mb-6 text-sm text-red-600">
+          Couldn't load your teams: {teamsError.message}
+        </p>
       ) : memberships.length === 0 ? (
         <p className="mb-6 text-slate-500">
           You're not on any teams yet. Create your first one below.
