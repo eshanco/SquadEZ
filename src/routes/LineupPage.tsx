@@ -247,17 +247,27 @@ export function LineupPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         {periods.map((period, index) => (
-          <button
+          <span
             key={period.id}
-            onClick={() => setSelectedPeriodIndex(index)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+            className={`flex items-center gap-1 rounded-md pl-3 pr-1.5 py-1.5 text-sm font-medium ${
               index === selectedPeriodIndex
                 ? 'bg-emerald-600 text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            {period.label}
-          </button>
+            <button onClick={() => setSelectedPeriodIndex(index)}>{period.label}</button>
+            <button
+              onClick={() => removePeriod(index)}
+              aria-label={`Delete ${period.label}`}
+              className={`rounded px-1 leading-none ${
+                index === selectedPeriodIndex
+                  ? 'hover:bg-emerald-700'
+                  : 'hover:bg-slate-300'
+              }`}
+            >
+              ×
+            </button>
+          </span>
         ))}
         <button
           onClick={addPeriod}
@@ -294,14 +304,6 @@ export function LineupPage() {
                 className="w-24 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
               />
             </div>
-            {periods.length > 1 && (
-              <button
-                onClick={() => removePeriod(selectedPeriodIndex)}
-                className="text-sm text-red-600 hover:underline"
-              >
-                Remove this period
-              </button>
-            )}
           </div>
 
           <DndContext onDragEnd={handleDragEnd}>
