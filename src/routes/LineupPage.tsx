@@ -35,6 +35,7 @@ export function LineupPage() {
 
   const [formationId, setFormationId] = useState(DEFAULT_FORMATIONS[1].id) // 4-3-3
   const [periods, setPeriods] = useState<LineupPeriod[]>([])
+  const [unavailablePlayerIds, setUnavailablePlayerIds] = useState<string[]>([])
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0)
   const [saving, setSaving] = useState(false)
 
@@ -47,16 +48,33 @@ export function LineupPage() {
     if (lineup) {
       setFormationId(lineup.formationId)
       setPeriods(lineup.periods)
+      setUnavailablePlayerIds(lineup.unavailablePlayerIds ?? [])
     }
   }, [lineup])
 
   const activePlayers = players.filter((p) => p.active)
   const playersById = new Map(activePlayers.map((p) => [p.id, p]))
+  const availablePlayers = activePlayers.filter((p) => !unavailablePlayerIds.includes(p.id))
+  const unavailablePlayers = activePlayers.filter((p) => unavailablePlayerIds.includes(p.id))
   const selectedFormation = formations.find((f) => f.id === formationId) ?? formations[0]
   const selectedPeriod: LineupPeriod | undefined = periods[selectedPeriodIndex]
 
   const assignedPlayerIds = new Set(selectedPeriod?.assignments.map((a) => a.playerId) ?? [])
-  const benchPlayers = activePlayers.filter((p) => !assignedPlayerIds.has(p.id))
+  const benchPlayers = availablePlayers.filter((p) => !assignedPlayerIds.has(p.id))
+
+  const markUnavailable = (playerId: string) => {
+    setUnavailablePlayerIds((ids) => [...ids, playerId])
+    setPeriods((prev) =>
+      prev.map((period) => ({
+        ...period,
+        assignments: period.assignments.filter((a) => a.playerId !== playerId),
+      })),
+    )
+  }
+
+  const markAvailable = (playerId: string) => {
+    setUnavailablePlayerIds((ids) => ids.filter((id) => id !== playerId))
+  }
 
   const addPeriod = () => {
     const previous = periods[periods.length - 1]
@@ -175,6 +193,7 @@ export function LineupPage() {
       await setDoc(lineupDoc(teamId, eventId), {
         formationId,
         periods,
+        unavailablePlayerIds,
         updatedBy: user.uid,
         updatedAt: serverTimestamp(),
       })
@@ -356,10 +375,46 @@ export function LineupPage() {
                     </p>
                   ) : (
                     benchPlayers.map((player) => (
-                      <PlayerChip key={player.id} dragId={`bench:${player.id}`} player={player} />
+                      <div key={player.id} className="relative">
+                        <PlayerChip dragId={`bench:${player.id}`} player={player} />
+                        <button
+                          onClick={() => markUnavailable(player.id)}
+                          aria-label={`Remove ${player.firstName} from available squad`}
+                          title="Not available for this one"
+                          className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-400 text-[10px] leading-none text-white hover:bg-red-500"
+                        >
+                          ×
+                        </button>
+                      </div>
                     ))
                   )}
                 </BenchDropZone>
+
+                {unavailablePlayers.length > 0 && (
+                  <div className="mt-4">
+                    <h2 className="mb-2 text-sm font-medium text-slate-700">
+                      Unavailable ({unavailablePlayers.length})
+                    </h2>
+                    <ul className="space-y-1">
+                      {unavailablePlayers.map((player) => (
+                        <li
+                          key={player.id}
+                          className="flex items-center justify-between rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-500"
+                        >
+                          <span>
+                            {player.firstName} {player.lastName}
+                          </span>
+                          <button
+                            onClick={() => markAvailable(player.id)}
+                            className="text-emerald-700 hover:underline"
+                          >
+                            + Add back
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           </DndContext>

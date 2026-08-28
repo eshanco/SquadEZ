@@ -122,11 +122,9 @@ export function EventDetailPage() {
 
   if (loading) return <p className="text-slate-500">Loading event…</p>
 
-  const rsvpCounts = { yes: 0, no: 0, maybe: 0 }
-  for (const r of rsvps) {
-    if (r.status === 'yes' || r.status === 'no' || r.status === 'maybe') rsvpCounts[r.status]++
-  }
-  const noResponse = players.length - rsvps.length
+  const attended = rsvps.filter((r) => r.status === 'yes').length
+  const absent = rsvps.filter((r) => r.status === 'no').length
+  const notMarked = players.filter((p) => p.active).length - attended - absent
 
   return (
     <div className="max-w-lg space-y-6">
@@ -134,24 +132,26 @@ export function EventDetailPage() {
 
       {!isNew && (
         <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <p className="mb-3 text-sm text-slate-500">
-            {rsvpCounts.yes} yes · {rsvpCounts.no} no · {rsvpCounts.maybe} maybe · {noResponse} no
-            response
-          </p>
-          <div className="flex gap-3">
-            <Link
-              to={`/teams/${teamId}/schedule/${eventId}/rsvp`}
-              className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
-            >
-              Track Attendance
-            </Link>
+          {form.type === 'practice' ? (
+            <>
+              <p className="mb-3 text-sm text-slate-500">
+                {attended} attended · {absent} absent · {notMarked} not yet marked
+              </p>
+              <Link
+                to={`/teams/${teamId}/schedule/${eventId}/attendance`}
+                className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+              >
+                Track Attendance
+              </Link>
+            </>
+          ) : (
             <Link
               to={`/teams/${teamId}/schedule/${eventId}/lineup`}
               className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
             >
               Build Lineup
             </Link>
-          </div>
+          )}
         </div>
       )}
 

@@ -103,6 +103,7 @@ export interface LineupPeriod {
 export interface Lineup {
   formationId: string
   periods: LineupPeriod[]
+  unavailablePlayerIds: string[]
   updatedBy: string
   updatedAt: number
 }

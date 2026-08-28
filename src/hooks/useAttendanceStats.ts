@@ -63,27 +63,27 @@ export function useAttendanceStats(teamId: string | undefined) {
           }
         }
 
+        // No RSVPs for matches - "attended" a match means the coach actually
+        // placed the player in the lineup for at least one period, not a
+        // pre-game RSVP (that's coordinated outside the app, e.g. WhatsApp).
         const matchAttended = new Map<string, number>()
         const matchMinutes = new Map<string, number>()
         for (const event of matchEvents) {
-          const rsvpSnap = await getDocs(rsvpsCollection(teamId as string, event.id))
-          for (const rsvpDocSnap of rsvpSnap.docs) {
-            const data = rsvpDocSnap.data() as Rsvp
-            if (data.status === 'yes') {
-              matchAttended.set(data.playerId, (matchAttended.get(data.playerId) ?? 0) + 1)
-            }
-          }
-
           const lineupSnap = await getDoc(lineupDoc(teamId as string, event.id))
           if (lineupSnap.exists()) {
             const lineup = lineupSnap.data() as Lineup
+            const playedInThisMatch = new Set<string>()
             for (const period of lineup.periods) {
               for (const assignment of period.assignments) {
+                playedInThisMatch.add(assignment.playerId)
                 matchMinutes.set(
                   assignment.playerId,
                   (matchMinutes.get(assignment.playerId) ?? 0) + (period.durationMinutes || 0),
                 )
               }
+            }
+            for (const playerId of playedInThisMatch) {
+              matchAttended.set(playerId, (matchAttended.get(playerId) ?? 0) + 1)
             }
           }
         }

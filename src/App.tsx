@@ -9,13 +9,13 @@ import { ForgotPasswordPage } from './routes/ForgotPasswordPage'
 import { LineupPage } from './routes/LineupPage'
 import { LoginPage } from './routes/LoginPage'
 import { PlayerDetailPage } from './routes/PlayerDetailPage'
-import { RsvpPage } from './routes/RsvpPage'
 import { SchedulePage } from './routes/SchedulePage'
 import { SignupPage } from './routes/SignupPage'
 import { SquadPage } from './routes/SquadPage'
 import { TeamDashboardPage } from './routes/TeamDashboardPage'
 import { TeamSettingsPage } from './routes/TeamSettingsPage'
 import { TeamsListPage } from './routes/TeamsListPage'
+import { TrackAttendancePage } from './routes/TrackAttendancePage'
 
 function TeamLayout() {
   return (
@@ -43,7 +43,7 @@ export default function App() {
               <Route path="squad/:playerId" element={<PlayerDetailPage />} />
               <Route path="schedule" element={<SchedulePage />} />
               <Route path="schedule/:eventId" element={<EventDetailPage />} />
-              <Route path="schedule/:eventId/rsvp" element={<RsvpPage />} />
+              <Route path="schedule/:eventId/attendance" element={<TrackAttendancePage />} />
               <Route path="schedule/:eventId/lineup" element={<LineupPage />} />
               <Route path="attendance" element={<AttendancePage />} />
               <Route path="settings" element={<TeamSettingsPage />} />
