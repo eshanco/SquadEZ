@@ -132,6 +132,29 @@ export function EventDetailPage() {
     <div className="max-w-lg space-y-6">
       <h1 className="text-2xl font-semibold text-slate-900">{isNew ? 'Add event' : form.title}</h1>
 
+      {!isNew && (
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <p className="mb-3 text-sm text-slate-500">
+            {rsvpCounts.yes} yes · {rsvpCounts.no} no · {rsvpCounts.maybe} maybe · {noResponse} no
+            response
+          </p>
+          <div className="flex gap-3">
+            <Link
+              to={`/teams/${teamId}/schedule/${eventId}/rsvp`}
+              className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              Track Attendance
+            </Link>
+            <Link
+              to={`/teams/${teamId}/schedule/${eventId}/lineup`}
+              className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              Build Lineup
+            </Link>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex gap-3">
           <div>
@@ -257,30 +280,6 @@ export function EventDetailPage() {
           )}
         </div>
       </form>
-
-      {!isNew && (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h2 className="mb-3 text-lg font-medium text-slate-900">Attendance & lineup</h2>
-          <p className="mb-3 text-sm text-slate-500">
-            {rsvpCounts.yes} yes · {rsvpCounts.no} no · {rsvpCounts.maybe} maybe · {noResponse} no
-            response
-          </p>
-          <div className="flex gap-3">
-            <Link
-              to={`/teams/${teamId}/schedule/${eventId}/rsvp`}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
-            >
-              Track RSVPs
-            </Link>
-            <Link
-              to={`/teams/${teamId}/schedule/${eventId}/lineup`}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
-            >
-              Build lineup
-            </Link>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
