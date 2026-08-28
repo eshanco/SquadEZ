@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { signIn } from '../firebase/auth'
+import { getAuthErrorMessage } from '../firebase/authErrors'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
@@ -17,7 +18,7 @@ export function LoginPage() {
       await signIn(email, password)
       navigate('/teams')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign in')
+      setError(getAuthErrorMessage(err))
     } finally {
       setSubmitting(false)
     }
@@ -39,7 +40,12 @@ export function LoginPage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="block text-sm font-medium text-slate-700">Password</label>
+              <Link to="/forgot-password" className="text-xs text-emerald-700 hover:underline">
+                Forgot password?
+              </Link>
+            </div>
             <input
               type="password"
               required

@@ -4,6 +4,7 @@ import { ProtectedRoute } from './components/layout/ProtectedRoute'
 import { AuthProvider } from './contexts/AuthContext'
 import { TeamProvider } from './contexts/TeamContext'
 import { EventDetailPage } from './routes/EventDetailPage'
+import { ForgotPasswordPage } from './routes/ForgotPasswordPage'
 import { LineupPage } from './routes/LineupPage'
 import { LoginPage } from './routes/LoginPage'
 import { PlayerDetailPage } from './routes/PlayerDetailPage'
@@ -30,6 +31,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/teams" element={<TeamsListPage />} />

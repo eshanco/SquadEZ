@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { signUp } from '../firebase/auth'
+import { getAuthErrorMessage } from '../firebase/authErrors'
 
 export function SignupPage() {
   const [displayName, setDisplayName] = useState('')
@@ -18,7 +19,7 @@ export function SignupPage() {
       await signUp(email, password, displayName)
       navigate('/teams')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign up')
+      setError(getAuthErrorMessage(err))
     } finally {
       setSubmitting(false)
     }

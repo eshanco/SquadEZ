@@ -1,5 +1,6 @@
 import {
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   updateProfile,
@@ -24,4 +25,8 @@ export async function signIn(email: string, password: string) {
 
 export async function signOut() {
   await firebaseSignOut(auth)
+}
+
+export async function resetPassword(email: string) {
+  await sendPasswordResetEmail(auth, email)
 }
