@@ -1,5 +1,7 @@
 import { NavLink, Outlet, useParams } from 'react-router-dom'
+import { useAuthContext } from '../../contexts/AuthContext'
 import { useTeamContext } from '../../contexts/TeamContext'
+import { useTeams } from '../../hooks/useTeams'
 import { TopBar } from './TopBar'
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -9,12 +11,18 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 
 export function AppShell() {
   const { teamId } = useParams<{ teamId: string }>()
+  const { user } = useAuthContext()
   const { team, loading } = useTeamContext()
+  const { memberships } = useTeams(user?.uid)
 
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
-        <TopBar subtitle={loading ? 'Loading team…' : (team?.name ?? 'Unknown team')} />
+        <TopBar
+          subtitle={loading ? 'Loading team…' : (team?.name ?? 'Unknown team')}
+          teams={memberships}
+          currentTeamId={teamId}
+        />
         <nav className="mx-auto flex max-w-4xl gap-1 overflow-x-auto px-4 pb-2">
           <NavLink to={`/teams/${teamId}`} end className={navLinkClass}>
             Dashboard
@@ -22,11 +30,11 @@ export function AppShell() {
           <NavLink to={`/teams/${teamId}/squad`} className={navLinkClass}>
             Squad
           </NavLink>
-          <NavLink to={`/teams/${teamId}/schedule`} className={navLinkClass}>
-            Schedule
+          <NavLink to={`/teams/${teamId}/lineup`} className={navLinkClass}>
+            Game Management
           </NavLink>
           <NavLink to={`/teams/${teamId}/attendance`} className={navLinkClass}>
-            Attendance
+            Training
           </NavLink>
           <NavLink to={`/teams/${teamId}/settings`} className={navLinkClass}>
             Settings

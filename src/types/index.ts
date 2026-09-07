@@ -24,12 +24,14 @@ export interface TeamMember {
   addedBy: string
 }
 
+export type PositionGroup = 'GK' | 'DEF' | 'MID' | 'FW'
+
 export interface Player {
   id: string
   firstName: string
   lastName: string
   jerseyNumber: string
-  positions: string[]
+  positions: PositionGroup[]
   parentName: string
   parentPhone: string
   parentEmail: string
@@ -41,6 +43,7 @@ export interface Player {
 }
 
 export type EventType = 'practice' | 'game'
+export type CompetitionType = 'league' | 'cup' | 'friendly'
 
 export interface TeamEvent {
   id: string
@@ -50,6 +53,7 @@ export interface TeamEvent {
   endAt: number
   location: string
   opponent: string | null
+  competition: CompetitionType | null
   notes: string
   createdBy: string
   createdAt: number

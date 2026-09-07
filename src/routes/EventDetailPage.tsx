@@ -1,23 +1,46 @@
 import { addDoc, deleteDoc, doc, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore'
 import { type FormEvent, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { db } from '../firebase/config'
 import { eventDoc, eventsCollection } from '../firebase/firestore'
-import { useRsvps } from '../hooks/useRsvps'
-import { usePlayers } from '../hooks/usePlayers'
-import type { EventType, TeamEvent } from '../types'
-import { fromDateTimeLocalInputValue, toDateTimeLocalInputValue } from '../utils/dates'
+import type { CompetitionType, EventType, TeamEvent } from '../types'
+import {
+  fromDateTimeLocalInputValue,
+  roundUpToNextHour,
+  toDateTimeLocalInputValue,
+} from '../utils/dates'
 
-const emptyForm = {
+const GAME_DURATION_MINUTES = 90
+const DATETIME_STEP_SECONDS = 300 // 5 minute increments
+
+const COMPETITION_TYPES: CompetitionType[] = ['league', 'cup', 'friendly']
+
+const emptyFormShape = {
   type: 'practice' as EventType,
   title: '',
-  startAt: toDateTimeLocalInputValue(Date.now()),
-  endAt: toDateTimeLocalInputValue(Date.now() + 60 * 60 * 1000),
+  startAt: '',
+  endAt: '',
   location: '',
   opponent: '',
+  competition: 'league' as CompetitionType,
   notes: '',
   repeatWeekly: false,
   repeatUntil: '',
+}
+
+function makeEmptyForm(initialType: EventType): typeof emptyFormShape {
+  return {
+    ...emptyFormShape,
+    type: initialType,
+    startAt: toDateTimeLocalInputValue(roundUpToNextHour(Date.now())),
+    endAt: toDateTimeLocalInputValue(roundUpToNextHour(Date.now()) + 60 * 60 * 1000),
+  }
+}
+
+// The page each event type "belongs" to, used to send the user back
+// somewhere useful after creating, editing, or deleting an event.
+function homePathFor(teamId: string, type: EventType) {
+  return type === 'game' ? `/teams/${teamId}/lineup` : `/teams/${teamId}/attendance`
 }
 
 const MAX_RECURRING_OCCURRENCES = 104 // 2 years of weekly events, a generous safety cap
@@ -36,16 +59,22 @@ function weeklyOccurrenceStarts(firstStartAt: number, repeatUntilDate: string): 
   return occurrences
 }
 
+function toggleClass(active: boolean) {
+  return `flex-1 rounded-md px-3 py-2 text-center text-sm font-medium ${
+    active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+  }`
+}
+
 export function EventDetailPage() {
   const { teamId, eventId } = useParams<{ teamId: string; eventId: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const isNew = eventId === 'new'
-  const [form, setForm] = useState(emptyForm)
+  const initialType =
+    (location.state as { initialType?: EventType } | null)?.initialType ?? 'practice'
+  const [form, setForm] = useState(() => makeEmptyForm(initialType))
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
-
-  const { players } = usePlayers(teamId)
-  const { rsvps } = useRsvps(teamId, isNew ? undefined : eventId)
 
   useEffect(() => {
     if (isNew || !teamId || !eventId) return
@@ -59,6 +88,7 @@ export function EventDetailPage() {
           endAt: toDateTimeLocalInputValue(data.endAt),
           location: data.location,
           opponent: data.opponent ?? '',
+          competition: data.competition ?? 'league',
           notes: data.notes,
           repeatWeekly: false,
           repeatUntil: '',
@@ -68,18 +98,24 @@ export function EventDetailPage() {
     })
   }, [isNew, teamId, eventId])
 
+  const isGame = form.type === 'game'
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     if (!teamId) return
     setSaving(true)
     try {
+      const startAt = fromDateTimeLocalInputValue(form.startAt)
       const payload = {
         type: form.type,
-        title: form.title,
-        startAt: fromDateTimeLocalInputValue(form.startAt),
-        endAt: fromDateTimeLocalInputValue(form.endAt),
+        title: isGame ? form.opponent.trim() : form.title,
+        startAt,
+        endAt: isGame
+          ? startAt + GAME_DURATION_MINUTES * 60 * 1000
+          : fromDateTimeLocalInputValue(form.endAt),
         location: form.location,
-        opponent: form.type === 'game' ? form.opponent : null,
+        opponent: isGame ? form.opponent.trim() : null,
+        competition: isGame ? form.competition : null,
         notes: form.notes,
       }
       if (isNew) {
@@ -87,23 +123,25 @@ export function EventDetailPage() {
           const occurrenceStarts = weeklyOccurrenceStarts(payload.startAt, form.repeatUntil)
           const duration = payload.endAt - payload.startAt
           const batch = writeBatch(db)
-          for (const startAt of occurrenceStarts) {
+          let firstRefId: string | undefined
+          for (const occurrenceStart of occurrenceStarts) {
             const ref = doc(eventsCollection(teamId))
+            firstRefId ??= ref.id
             batch.set(ref, {
               ...payload,
-              startAt,
-              endAt: startAt + duration,
+              startAt: occurrenceStart,
+              endAt: occurrenceStart + duration,
               createdAt: serverTimestamp(),
             })
           }
           await batch.commit()
-          navigate(`/teams/${teamId}/schedule`)
+          navigate(homePathFor(teamId, form.type), { state: { highlightEventId: firstRefId } })
         } else {
           const ref = await addDoc(eventsCollection(teamId), {
             ...payload,
             createdAt: serverTimestamp(),
           })
-          navigate(`/teams/${teamId}/schedule/${ref.id}`)
+          navigate(homePathFor(teamId, form.type), { state: { highlightEventId: ref.id } })
         }
       } else if (eventId) {
         await updateDoc(eventDoc(teamId, eventId), payload)
@@ -117,118 +155,152 @@ export function EventDetailPage() {
     if (!teamId || !eventId || isNew) return
     if (!confirm(`Delete "${form.title}"?`)) return
     await deleteDoc(eventDoc(teamId, eventId))
-    navigate(`/teams/${teamId}/schedule`)
+    navigate(homePathFor(teamId, form.type))
   }
 
   if (loading) return <p className="text-slate-500">Loading event…</p>
 
-  const attended = rsvps.filter((r) => r.status === 'yes').length
-  const absent = rsvps.filter((r) => r.status === 'no').length
-  const notMarked = players.filter((p) => p.active).length - attended - absent
+  const heading = isNew ? (isGame ? 'Add Game' : 'Add Session') : isGame ? `vs ${form.title}` : form.title
 
   return (
     <div className="max-w-lg space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">{isNew ? 'Add event' : form.title}</h1>
-
-      {!isNew && (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          {form.type === 'practice' ? (
-            <>
-              <p className="mb-3 text-sm text-slate-500">
-                {attended} attended · {absent} absent · {notMarked} not yet marked
-              </p>
-              <Link
-                to={`/teams/${teamId}/schedule/${eventId}/attendance`}
-                className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
-              >
-                Track Attendance
-              </Link>
-            </>
-          ) : (
-            <Link
-              to={`/teams/${teamId}/schedule/${eventId}/lineup`}
-              className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
-            >
-              Build Lineup
-            </Link>
-          )}
-        </div>
+      {teamId && (
+        <Link
+          to={homePathFor(teamId, form.type)}
+          className="text-sm text-emerald-700 hover:underline"
+        >
+          ← Back to {isGame ? 'Game Management' : 'Training'}
+        </Link>
       )}
 
+      <h1 className="text-2xl font-semibold text-slate-900">{heading}</h1>
+
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="flex gap-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Type</label>
-            <select
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as EventType }))}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
-              <option value="practice">Practice</option>
-              <option value="game">Game</option>
-            </select>
-          </div>
-          <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium text-slate-700">Title</label>
-            <input
-              required
-              value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setForm((f) => ({ ...f, type: 'game' }))}
+            className={toggleClass(isGame)}
+          >
+            Matches
+          </button>
+          <button
+            type="button"
+            onClick={() => setForm((f) => ({ ...f, type: 'practice' }))}
+            className={toggleClass(!isGame)}
+          >
+            Training
+          </button>
         </div>
 
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium text-slate-700">Start</label>
-            <input
-              type="datetime-local"
-              required
-              value={form.startAt}
-              onChange={(e) => setForm((f) => ({ ...f, startAt: e.target.value }))}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="flex-1">
-            <label className="mb-1 block text-sm font-medium text-slate-700">End</label>
-            <input
-              type="datetime-local"
-              required
-              value={form.endAt}
-              onChange={(e) => setForm((f) => ({ ...f, endAt: e.target.value }))}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-        </div>
-
-        {isNew && form.type === 'practice' && (
-          <div className="rounded-md border border-slate-200 p-3">
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+        {isGame ? (
+          <>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Opponent</label>
               <input
-                type="checkbox"
-                checked={form.repeatWeekly}
-                onChange={(e) => setForm((f) => ({ ...f, repeatWeekly: e.target.checked }))}
+                required
+                value={form.opponent}
+                onChange={(e) => setForm((f) => ({ ...f, opponent: e.target.value }))}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
-              Repeats weekly (same day/time)
-            </label>
-            {form.repeatWeekly && (
-              <div className="mt-3">
-                <label className="mb-1 block text-sm font-medium text-slate-700">Until</label>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Competition</label>
+              <div className="flex gap-2">
+                {COMPETITION_TYPES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, competition: c }))}
+                    className={toggleClass(form.competition === c)}
+                  >
+                    {c.charAt(0).toUpperCase() + c.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Start</label>
+              <input
+                type="datetime-local"
+                step={DATETIME_STEP_SECONDS}
+                required
+                value={form.startAt}
+                onChange={(e) => setForm((f) => ({ ...f, startAt: e.target.value }))}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Title</label>
+              <input
+                required
+                value={form.title}
+                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="mb-1 block text-sm font-medium text-slate-700">Start</label>
                 <input
-                  type="date"
+                  type="datetime-local"
+                  step={DATETIME_STEP_SECONDS}
                   required
-                  value={form.repeatUntil}
-                  onChange={(e) => setForm((f) => ({ ...f, repeatUntil: e.target.value }))}
+                  value={form.startAt}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, startAt: e.target.value, endAt: e.target.value }))
+                  }
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
-                <p className="mt-1 text-xs text-slate-500">
-                  Creates a separate practice each week up to and including this date — each one
-                  can be edited or deleted individually afterward.
-                </p>
+              </div>
+              <div className="flex-1">
+                <label className="mb-1 block text-sm font-medium text-slate-700">End</label>
+                <input
+                  type="datetime-local"
+                  step={DATETIME_STEP_SECONDS}
+                  required
+                  value={form.endAt}
+                  onChange={(e) => setForm((f) => ({ ...f, endAt: e.target.value }))}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+
+            {isNew && (
+              <div className="rounded-md border border-slate-200 p-3">
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.repeatWeekly}
+                    onChange={(e) => setForm((f) => ({ ...f, repeatWeekly: e.target.checked }))}
+                  />
+                  Repeats weekly (same day/time)
+                </label>
+                {form.repeatWeekly && (
+                  <div className="mt-3">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">Until</label>
+                    <input
+                      type="date"
+                      required
+                      value={form.repeatUntil}
+                      onChange={(e) => setForm((f) => ({ ...f, repeatUntil: e.target.value }))}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      Creates a separate practice each week up to and including this date — each
+                      one can be edited or deleted individually afterward.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
-          </div>
+          </>
         )}
 
         <div>
@@ -239,17 +311,6 @@ export function EventDetailPage() {
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
-
-        {form.type === 'game' && (
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Opponent</label>
-            <input
-              value={form.opponent}
-              onChange={(e) => setForm((f) => ({ ...f, opponent: e.target.value }))}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-        )}
 
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">Notes</label>

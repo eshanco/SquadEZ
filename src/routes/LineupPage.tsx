@@ -9,8 +9,75 @@ import { formationsCollection, lineupDoc } from '../firebase/firestore'
 import { useFormations } from '../hooks/useFormations'
 import { useLineup } from '../hooks/useLineup'
 import { usePlayers } from '../hooks/usePlayers'
-import type { LineupPeriod } from '../types'
+import type { LineupPeriod, Player, TeamEvent } from '../types'
 import { DEFAULT_FORMATIONS, formationRows, parseFormationShape } from '../utils/formations'
+
+// Period labels are derived, not typed in: each period's label is the
+// cumulative minute range implied by every period's duration before it, e.g.
+// a 20 min period 1 followed by a 25 min period 2 labels them "0-20" and
+// "20-45". Recomputed from scratch whenever durations or ordering change.
+function withComputedLabels(periods: LineupPeriod[]): LineupPeriod[] {
+  let cursor = 0
+  return periods.map((period) => {
+    const start = cursor
+    cursor += period.durationMinutes
+    return { ...period, label: `${start}-${cursor}` }
+  })
+}
+
+function MinutesSummaryTable({
+  periods,
+  players,
+}: {
+  periods: LineupPeriod[]
+  players: Player[]
+}) {
+  if (periods.length === 0 || players.length === 0) return null
+
+  const rows = players
+    .map((player) => {
+      const perPeriod = periods.map((period) =>
+        period.assignments.some((a) => a.playerId === player.id) ? period.durationMinutes : 0,
+      )
+      const total = perPeriod.reduce((sum, minutes) => sum + minutes, 0)
+      return { player, perPeriod, total }
+    })
+    .sort((a, b) => b.total - a.total)
+
+  return (
+    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-4">
+      <h2 className="mb-3 text-sm font-medium text-slate-700">Minutes played</h2>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+            <th className="py-1.5 pr-2 font-medium">Player</th>
+            {periods.map((period) => (
+              <th key={period.id} className="whitespace-nowrap px-2 py-1.5 text-right font-medium">
+                {period.label}
+              </th>
+            ))}
+            <th className="py-1.5 pl-2 text-right font-medium">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ player, perPeriod, total }) => (
+            <tr key={player.id} className="border-b border-slate-100 last:border-0">
+              <td className="py-1.5 pr-2 font-medium text-slate-900">
+                {player.firstName} {player.lastName}
+              </td>
+              {perPeriod.map((minutes, i) => (
+                <td key={periods[i].id} className="px-2 py-1.5 text-right text-slate-600">
+                  {minutes || '–'}
+                </td>
+              ))}
+              <td className="py-1.5 pl-2 text-right font-semibold text-slate-900">{total}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 
 function BenchDropZone({ children }: { children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: 'bench' })
@@ -26,12 +93,17 @@ function BenchDropZone({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function LineupPage() {
+export function LineupPage({ event }: { event: TeamEvent }) {
   const { teamId, eventId } = useParams<{ teamId: string; eventId: string }>()
   const { user } = useAuthContext()
   const { players } = usePlayers(teamId)
   const { lineup, loading } = useLineup(teamId, eventId)
   const { formations } = useFormations(teamId)
+
+  const isPast = event.endAt < Date.now()
+  const [editingEventId, setEditingEventId] = useState<string | null>(null)
+  const editing = !isPast || editingEventId === event.id
+  const readOnly = !editing
 
   const [formationId, setFormationId] = useState(DEFAULT_FORMATIONS[1].id) // 4-3-3
   const [periods, setPeriods] = useState<LineupPeriod[]>([])
@@ -47,10 +119,29 @@ export function LineupPage() {
   useEffect(() => {
     if (lineup) {
       setFormationId(lineup.formationId)
-      setPeriods(lineup.periods)
+      setPeriods(withComputedLabels(lineup.periods))
       setUnavailablePlayerIds(lineup.unavailablePlayerIds ?? [])
     }
   }, [lineup])
+
+  // A brand-new lineup (nothing saved yet) starts with zero periods, which
+  // hides the pitch entirely - seed one default period once loading settles
+  // and confirms there's really nothing saved, so the pitch is visible
+  // immediately instead of behind an easy-to-miss "+ Add period" click.
+  useEffect(() => {
+    if (!loading && !readOnly && periods.length === 0) {
+      setPeriods(
+        withComputedLabels([
+          {
+            id: crypto.randomUUID(),
+            label: '',
+            durationMinutes: 20,
+            assignments: [],
+          },
+        ]),
+      )
+    }
+  }, [loading, readOnly, periods.length])
 
   const activePlayers = players.filter((p) => p.active)
   const playersById = new Map(activePlayers.map((p) => [p.id, p]))
@@ -80,22 +171,24 @@ export function LineupPage() {
     const previous = periods[periods.length - 1]
     const newPeriod: LineupPeriod = {
       id: crypto.randomUUID(),
-      label: `Period ${periods.length + 1}`,
+      label: '',
       durationMinutes: previous?.durationMinutes ?? 20,
       assignments: previous ? previous.assignments.map((a) => ({ ...a })) : [],
     }
-    setPeriods((p) => [...p, newPeriod])
+    setPeriods((p) => withComputedLabels([...p, newPeriod]))
     setSelectedPeriodIndex(periods.length)
   }
 
   const removePeriod = (index: number) => {
-    setPeriods((p) => p.filter((_, i) => i !== index))
+    setPeriods((p) => withComputedLabels(p.filter((_, i) => i !== index)))
     setSelectedPeriodIndex((i) => Math.max(0, i === index ? i - 1 : i > index ? i - 1 : i))
   }
 
   const updateSelectedPeriod = (patch: Partial<LineupPeriod>) => {
     setPeriods((prev) =>
-      prev.map((period, i) => (i === selectedPeriodIndex ? { ...period, ...patch } : period)),
+      withComputedLabels(
+        prev.map((period, i) => (i === selectedPeriodIndex ? { ...period, ...patch } : period)),
+      ),
     )
   }
 
@@ -105,10 +198,10 @@ export function LineupPage() {
     updateSelectedPeriod({ assignments: previous.assignments.map((a) => ({ ...a })) })
   }
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = (dragEvent: DragEndEvent) => {
     if (!selectedFormation) return
-    const activeId = String(event.active.id)
-    const overId = event.over ? String(event.over.id) : null
+    const activeId = String(dragEvent.active.id)
+    const overId = dragEvent.over ? String(dragEvent.over.id) : null
     if (!overId) return
 
     setPeriods((prev) =>
@@ -165,8 +258,8 @@ export function LineupPage() {
     )
   }
 
-  const handleCreateFormation = async (event: FormEvent) => {
-    event.preventDefault()
+  const handleCreateFormation = async (formEvent: FormEvent) => {
+    formEvent.preventDefault()
     if (!teamId || !user) return
     setNewFormationError(null)
     try {
@@ -197,6 +290,7 @@ export function LineupPage() {
         updatedBy: user.uid,
         updatedAt: serverTimestamp(),
       })
+      setEditingEventId(null)
     } finally {
       setSaving(false)
     }
@@ -204,9 +298,140 @@ export function LineupPage() {
 
   if (loading) return <p className="text-slate-500">Loading lineup…</p>
 
+  if (readOnly) {
+    return (
+      <div className="max-w-2xl space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold text-slate-900">Lineup</h1>
+          <button
+            onClick={() => setEditingEventId(event.id)}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+          >
+            {periods.length === 0 ? 'Add lineup' : 'Edit lineup'}
+          </button>
+        </div>
+
+        {periods.length === 0 ? (
+          <p className="text-slate-500">No lineup was recorded for this game.</p>
+        ) : (
+          <div className="space-y-4">
+            {selectedFormation && (
+              <p className="text-sm text-slate-500">Formation: {selectedFormation.name}</p>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              {periods.map((period, index) => (
+                <button
+                  key={period.id}
+                  onClick={() => setSelectedPeriodIndex(index)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                    index === selectedPeriodIndex
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {period.label}
+                </button>
+              ))}
+            </div>
+
+            {selectedPeriod && selectedFormation && (
+              <div className="space-y-4">
+                <p className="text-sm text-slate-500">{selectedPeriod.label} min</p>
+
+                <div className="flex flex-col gap-4 sm:flex-row">
+                  <div className="relative flex aspect-[3/4] w-full max-w-sm flex-col-reverse justify-between gap-3 overflow-hidden rounded-lg bg-emerald-600 p-3 sm:w-72">
+                    <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/30" />
+                    <div className="pointer-events-none absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30" />
+                    {formationRows(selectedFormation).map((row, rowIndex) => (
+                      <div
+                        key={rowIndex}
+                        className="relative z-10 flex items-center justify-center gap-1 px-1"
+                      >
+                        {row.map((slot) => {
+                          const assignment = selectedPeriod.assignments.find(
+                            (a) => a.slotId === slot.id,
+                          )
+                          const player = assignment
+                            ? (playersById.get(assignment.playerId) ?? null)
+                            : null
+                          return (
+                            <div
+                              key={slot.id}
+                              className="flex h-12 min-w-0 max-w-16 flex-1 flex-col items-center justify-center overflow-hidden rounded-md border-2 border-dashed border-white/40 p-1 text-center"
+                            >
+                              {player ? (
+                                <span className="w-full truncate text-[10px] font-semibold text-white">
+                                  {player.firstName}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-semibold text-white/90">
+                                  {slot.label}
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex-1">
+                    <h2 className="mb-2 text-sm font-medium text-slate-700">
+                      Bench ({benchPlayers.length})
+                    </h2>
+                    {benchPlayers.length === 0 ? (
+                      <p className="text-xs text-slate-400">No one on the bench.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {benchPlayers.map((player) => (
+                          <span
+                            key={player.id}
+                            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-800 shadow-sm"
+                          >
+                            #{player.jerseyNumber} {player.firstName}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {unavailablePlayers.length > 0 && (
+                      <div className="mt-4">
+                        <h2 className="mb-2 text-sm font-medium text-slate-700">
+                          Unavailable ({unavailablePlayers.length})
+                        </h2>
+                        <ul className="space-y-1">
+                          {unavailablePlayers.map((player) => (
+                            <li
+                              key={player.id}
+                              className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-500"
+                            >
+                              {player.firstName} {player.lastName}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <MinutesSummaryTable periods={periods} players={availablePlayers} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Lineup</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-slate-900">Lineup</h1>
+        {isPast && (
+          <span className="text-xs uppercase tracking-wide text-amber-600">Editing played game</span>
+        )}
+      </div>
 
       <div className="flex flex-wrap items-end gap-3">
         <div>
@@ -306,14 +531,8 @@ export function LineupPage() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Period label
-              </label>
-              <input
-                value={selectedPeriod.label}
-                onChange={(e) => updateSelectedPeriod({ label: e.target.value })}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-              />
+              <p className="mb-1 text-sm font-medium text-slate-700">Period {selectedPeriodIndex + 1}</p>
+              <p className="text-sm text-slate-500">{selectedPeriod.label} min</p>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -428,6 +647,8 @@ export function LineupPage() {
       >
         {saving ? 'Saving…' : 'Save lineup'}
       </button>
+
+      <MinutesSummaryTable periods={periods} players={availablePlayers} />
     </div>
   )
 }

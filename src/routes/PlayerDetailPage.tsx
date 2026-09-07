@@ -2,13 +2,15 @@ import { addDoc, deleteDoc, onSnapshot, serverTimestamp, updateDoc } from 'fireb
 import { type FormEvent, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { playerDoc, playersCollection } from '../firebase/firestore'
-import type { Player } from '../types'
+import type { Player, PositionGroup } from '../types'
+
+const POSITION_GROUPS: PositionGroup[] = ['GK', 'DEF', 'MID', 'FW']
 
 const emptyForm = {
   firstName: '',
   lastName: '',
   jerseyNumber: '',
-  positions: '',
+  positions: [] as PositionGroup[],
   parentName: '',
   parentPhone: '',
   parentEmail: '',
@@ -16,6 +18,12 @@ const emptyForm = {
   emergencyContactPhone: '',
   medicalNotes: '',
   active: true,
+}
+
+function toggleClass(active: boolean) {
+  return `flex-1 rounded-md px-3 py-2 text-center text-sm font-medium ${
+    active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+  }`
 }
 
 export function PlayerDetailPage() {
@@ -35,7 +43,7 @@ export function PlayerDetailPage() {
           firstName: data.firstName,
           lastName: data.lastName,
           jerseyNumber: data.jerseyNumber,
-          positions: data.positions.join(', '),
+          positions: data.positions,
           parentName: data.parentName,
           parentPhone: data.parentPhone,
           parentEmail: data.parentEmail,
@@ -55,6 +63,15 @@ export function PlayerDetailPage() {
       setForm((f) => ({ ...f, [key]: e.target.value })),
   })
 
+  const togglePosition = (pos: PositionGroup) => {
+    setForm((f) => ({
+      ...f,
+      positions: f.positions.includes(pos)
+        ? f.positions.filter((p) => p !== pos)
+        : [...f.positions, pos],
+    }))
+  }
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     if (!teamId) return
@@ -64,10 +81,7 @@ export function PlayerDetailPage() {
         firstName: form.firstName,
         lastName: form.lastName,
         jerseyNumber: form.jerseyNumber,
-        positions: form.positions
-          .split(',')
-          .map((p) => p.trim())
-          .filter(Boolean),
+        positions: form.positions,
         parentName: form.parentName,
         parentPhone: form.parentPhone,
         parentEmail: form.parentEmail,
@@ -117,14 +131,19 @@ export function PlayerDetailPage() {
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Positions (comma-separated)
-          </label>
-          <input
-            placeholder="Forward, Midfielder"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            {...field('positions')}
-          />
+          <label className="mb-1 block text-sm font-medium text-slate-700">Positions</label>
+          <div className="flex gap-2">
+            {POSITION_GROUPS.map((pos) => (
+              <button
+                key={pos}
+                type="button"
+                onClick={() => togglePosition(pos)}
+                className={toggleClass(form.positions.includes(pos))}
+              >
+                {pos}
+              </button>
+            ))}
+          </div>
         </div>
 
         <fieldset className="space-y-3 rounded-md border border-slate-200 p-3">

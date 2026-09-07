@@ -6,16 +6,14 @@ import { TeamProvider } from './contexts/TeamContext'
 import { AttendancePage } from './routes/AttendancePage'
 import { EventDetailPage } from './routes/EventDetailPage'
 import { ForgotPasswordPage } from './routes/ForgotPasswordPage'
-import { LineupPage } from './routes/LineupPage'
+import { LineupsPage } from './routes/LineupsPage'
 import { LoginPage } from './routes/LoginPage'
 import { PlayerDetailPage } from './routes/PlayerDetailPage'
-import { SchedulePage } from './routes/SchedulePage'
 import { SignupPage } from './routes/SignupPage'
 import { SquadPage } from './routes/SquadPage'
 import { TeamDashboardPage } from './routes/TeamDashboardPage'
 import { TeamSettingsPage } from './routes/TeamSettingsPage'
 import { TeamsListPage } from './routes/TeamsListPage'
-import { TrackAttendancePage } from './routes/TrackAttendancePage'
 
 function TeamLayout() {
   return (
@@ -41,11 +39,11 @@ export default function App() {
               <Route index element={<TeamDashboardPage />} />
               <Route path="squad" element={<SquadPage />} />
               <Route path="squad/:playerId" element={<PlayerDetailPage />} />
-              <Route path="schedule" element={<SchedulePage />} />
-              <Route path="schedule/:eventId" element={<EventDetailPage />} />
-              <Route path="schedule/:eventId/attendance" element={<TrackAttendancePage />} />
-              <Route path="schedule/:eventId/lineup" element={<LineupPage />} />
+              <Route path="events/:eventId" element={<EventDetailPage />} />
               <Route path="attendance" element={<AttendancePage />} />
+              <Route path="attendance/:eventId" element={<AttendancePage />} />
+              <Route path="lineup" element={<LineupsPage />} />
+              <Route path="lineup/:eventId" element={<LineupsPage />} />
               <Route path="settings" element={<TeamSettingsPage />} />
             </Route>
           </Route>

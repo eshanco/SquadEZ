@@ -16,3 +16,8 @@ export function toDateTimeLocalInputValue(ms: number) {
 export function fromDateTimeLocalInputValue(value: string) {
   return new Date(value).getTime()
 }
+
+export function roundUpToNextHour(ms: number) {
+  const HOUR_MS = 60 * 60 * 1000
+  return Math.ceil(ms / HOUR_MS) * HOUR_MS
+}

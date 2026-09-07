@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { AttendanceMarker } from '../components/attendance/AttendanceMarker'
 import { useAttendanceStats } from '../hooks/useAttendanceStats'
 import { useEvents } from '../hooks/useEvents'
 import type { TeamEvent } from '../types'
 import { formatEventDateTime } from '../utils/dates'
+import { LineupPage } from './LineupPage'
 
 function EventRow({
   event,
@@ -27,8 +27,11 @@ function EventRow({
       } ${selected ? 'bg-emerald-50' : ''}`}
     >
       <button onClick={onSelect} className="flex-1 px-4 py-3 text-left hover:bg-slate-50">
-        <p className="font-medium text-slate-900">{event.title}</p>
+        <p className="font-medium text-slate-900">vs {event.title}</p>
         <p className="text-sm text-slate-500">{formatEventDateTime(event.startAt)}</p>
+        {event.competition && (
+          <p className="text-xs uppercase text-slate-400">{event.competition}</p>
+        )}
       </button>
       <div className="flex shrink-0 items-center gap-3 pr-4">
         <Link
@@ -38,14 +41,14 @@ function EventRow({
           Edit
         </Link>
         <span className="text-xs font-medium text-emerald-700">
-          {selected ? 'Hide' : 'Mark attendance'}
+          {selected ? 'Hide' : 'Build lineup'}
         </span>
       </div>
     </div>
   )
 }
 
-export function AttendancePage() {
+export function LineupsPage() {
   const { teamId, eventId } = useParams<{ teamId: string; eventId?: string }>()
   const navigate = useNavigate()
   const location = useLocation()
@@ -55,11 +58,13 @@ export function AttendancePage() {
   const { stats, players, loading: statsLoading } = useAttendanceStats(teamId)
 
   const now = Date.now()
-  const practices = events.filter((e) => e.type === 'practice')
-  const past = practices.filter((e) => e.startAt < now).sort((a, b) => b.startAt - a.startAt)
-  const upcoming = practices.filter((e) => e.startAt >= now).sort((a, b) => a.startAt - b.startAt)
-  const justHappened = past[0]
-  const otherEvents = [...past.slice(1), ...upcoming].sort((a, b) => b.startAt - a.startAt)
+  const games = events.filter((e) => e.type === 'game')
+  const upcoming = games.filter((e) => e.startAt >= now).sort((a, b) => a.startAt - b.startAt)
+  const past = games.filter((e) => e.startAt < now).sort((a, b) => b.startAt - a.startAt)
+  const nextTwo = upcoming.slice(0, 2)
+  const otherEvents = [...upcoming.slice(2), ...past].sort((a, b) => b.startAt - a.startAt)
+
+  const selectedEvent = games.find((e) => e.id === eventId)
 
   const highlightInOther = otherEvents.some((e) => e.id === highlightEventId)
   const [otherOpen, setOtherOpen] = useState(false)
@@ -74,9 +79,7 @@ export function AttendancePage() {
   }, [highlightEventId, eventsLoading])
 
   const selectEvent = (id: string) => {
-    navigate(
-      id === eventId ? `/teams/${teamId}/attendance` : `/teams/${teamId}/attendance/${id}`,
-    )
+    navigate(id === eventId ? `/teams/${teamId}/lineup` : `/teams/${teamId}/lineup/${id}`)
   }
 
   const playerName = (playerId: string) => {
@@ -87,34 +90,37 @@ export function AttendancePage() {
   return (
     <div className="max-w-2xl space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900">Training</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Game Management</h1>
         <Link
           to={`/teams/${teamId}/events/new`}
-          state={{ initialType: 'practice' }}
+          state={{ initialType: 'game' }}
           className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
         >
-          Add Session
+          Add Game
         </Link>
       </div>
 
       {eventsLoading ? (
         <p className="text-slate-500">Loading…</p>
-      ) : !justHappened ? (
-        <p className="text-slate-500">No training sessions yet.</p>
+      ) : games.length === 0 ? (
+        <p className="text-slate-500">No games scheduled yet.</p>
       ) : (
         <div className="space-y-2">
-          <div className="rounded-lg border border-emerald-300 bg-emerald-50">
-            <EventRow
-              event={justHappened}
-              teamId={teamId as string}
-              selected={eventId === justHappened.id}
-              onSelect={() => selectEvent(justHappened.id)}
-              highlighted={justHappened.id === highlightEventId}
-            />
-          </div>
-          {eventId === justHappened.id && teamId && (
-            <div className="pl-1">
-              <AttendanceMarker teamId={teamId} eventId={eventId} />
+          {nextTwo.length === 0 ? (
+            <p className="text-sm text-slate-400">No upcoming games scheduled.</p>
+          ) : (
+            <div className="divide-y divide-emerald-200 rounded-lg border border-emerald-300 bg-emerald-50">
+              {nextTwo.map((event) => (
+                <div key={event.id}>
+                  <EventRow
+                    event={event}
+                    teamId={teamId as string}
+                    selected={eventId === event.id}
+                    onSelect={() => selectEvent(event.id)}
+                    highlighted={event.id === highlightEventId}
+                  />
+                </div>
+              ))}
             </div>
           )}
 
@@ -128,7 +134,7 @@ export function AttendancePage() {
                 <span className="mr-1 inline-block transition-transform group-open:rotate-90">
                   ▸
                 </span>
-                Other sessions ({otherEvents.length})
+                Other matches ({otherEvents.length})
               </summary>
               <ul className="divide-y divide-slate-200 border-t border-slate-200">
                 {otherEvents.map((event) => (
@@ -140,11 +146,6 @@ export function AttendancePage() {
                       onSelect={() => selectEvent(event.id)}
                       highlighted={event.id === highlightEventId}
                     />
-                    {eventId === event.id && teamId && (
-                      <div className="px-4 pb-3">
-                        <AttendanceMarker teamId={teamId} eventId={eventId} />
-                      </div>
-                    )}
                   </li>
                 ))}
               </ul>
@@ -153,44 +154,43 @@ export function AttendancePage() {
         </div>
       )}
 
-      {!statsLoading && stats && (
-        <div className="space-y-6">
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <h2 className="mb-1 text-lg font-medium text-slate-900">Season attendance</h2>
-            <p className="mb-3 text-sm text-slate-500">
-              {stats.totalTrainingSessions} session{stats.totalTrainingSessions === 1 ? '' : 's'}{' '}
-              run
-            </p>
-            {stats.totalTrainingSessions === 0 || players.length === 0 ? (
-              <p className="text-sm text-slate-400">No completed training sessions yet.</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-                    <th className="py-1.5 pr-2 font-medium">Player</th>
-                    <th className="py-1.5 pr-2 font-medium">Attended</th>
-                    <th className="py-1.5 pr-2 font-medium">Missed</th>
-                    <th className="py-1.5 font-medium">%</th>
+      {teamId && selectedEvent && (
+        <div className="border-t border-slate-200 pt-6">
+          <LineupPage key={selectedEvent.id} event={selectedEvent} />
+        </div>
+      )}
+
+      {!statsLoading && stats && stats.totalMatches > 0 && players.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <h2 className="mb-1 text-lg font-medium text-slate-900">Season match stats</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            {stats.totalMatches} match{stats.totalMatches === 1 ? '' : 'es'} played
+          </p>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+                <th className="py-1.5 pr-2 font-medium">Player</th>
+                <th className="py-1.5 pr-2 font-medium">Attended</th>
+                <th className="py-1.5 pr-2 font-medium">%</th>
+                <th className="py-1.5 font-medium">Minutes played</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.matches
+                .slice()
+                .sort((a, b) => b.minutesPlayed - a.minutesPlayed)
+                .map((row) => (
+                  <tr key={row.playerId} className="border-b border-slate-100 last:border-0">
+                    <td className="py-1.5 pr-2 font-medium text-slate-900">
+                      {playerName(row.playerId)}
+                    </td>
+                    <td className="py-1.5 pr-2 text-slate-600">{row.attended}</td>
+                    <td className="py-1.5 pr-2 text-slate-600">{row.percent}%</td>
+                    <td className="py-1.5 text-slate-600">{row.minutesPlayed}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {stats.training
-                    .slice()
-                    .sort((a, b) => b.percent - a.percent)
-                    .map((row) => (
-                      <tr key={row.playerId} className="border-b border-slate-100 last:border-0">
-                        <td className="py-1.5 pr-2 font-medium text-slate-900">
-                          {playerName(row.playerId)}
-                        </td>
-                        <td className="py-1.5 pr-2 text-slate-600">{row.attended}</td>
-                        <td className="py-1.5 pr-2 text-slate-600">{row.missed}</td>
-                        <td className="py-1.5 text-slate-600">{row.percent}%</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
