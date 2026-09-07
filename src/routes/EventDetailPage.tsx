@@ -131,6 +131,7 @@ export function EventDetailPage() {
               ...payload,
               startAt: occurrenceStart,
               endAt: occurrenceStart + duration,
+              cancelled: false,
               createdAt: serverTimestamp(),
             })
           }
@@ -139,6 +140,7 @@ export function EventDetailPage() {
         } else {
           const ref = await addDoc(eventsCollection(teamId), {
             ...payload,
+            cancelled: false,
             createdAt: serverTimestamp(),
           })
           navigate(homePathFor(teamId, form.type), { state: { highlightEventId: ref.id } })

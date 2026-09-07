@@ -6,10 +6,12 @@ export function PlayerChip({
   dragId,
   player,
   compact,
+  displayName,
 }: {
   dragId: string
   player: Player
   compact?: boolean
+  displayName?: string
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: dragId })
   const style = { transform: CSS.Translate.toString(transform) }
@@ -24,7 +26,9 @@ export function PlayerChip({
         isDragging ? 'opacity-40' : ''
       } ${compact ? 'w-full text-center' : ''}`}
     >
-      {compact ? player.firstName : `#${player.jerseyNumber} ${player.firstName}`}
+      {compact
+        ? (displayName ?? player.firstName)
+        : `#${player.jerseyNumber} ${player.firstName}`}
     </div>
   )
 }

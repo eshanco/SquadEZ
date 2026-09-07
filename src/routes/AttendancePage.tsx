@@ -1,6 +1,8 @@
+import { updateDoc } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { AttendanceMarker } from '../components/attendance/AttendanceMarker'
+import { eventDoc } from '../firebase/firestore'
 import { useAttendanceStats } from '../hooks/useAttendanceStats'
 import { useEvents } from '../hooks/useEvents'
 import type { TeamEvent } from '../types'
@@ -11,12 +13,14 @@ function EventRow({
   teamId,
   selected,
   onSelect,
+  onToggleCancelled,
   highlighted,
 }: {
   event: TeamEvent
   teamId: string
   selected: boolean
   onSelect: () => void
+  onToggleCancelled: () => void
   highlighted: boolean
 }) {
   return (
@@ -27,8 +31,17 @@ function EventRow({
       } ${selected ? 'bg-emerald-50' : ''}`}
     >
       <button onClick={onSelect} className="flex-1 px-4 py-3 text-left hover:bg-slate-50">
-        <p className="font-medium text-slate-900">{event.title}</p>
+        <p
+          className={`font-medium ${
+            event.cancelled ? 'text-slate-400 line-through' : 'text-slate-900'
+          }`}
+        >
+          {event.title}
+        </p>
         <p className="text-sm text-slate-500">{formatEventDateTime(event.startAt)}</p>
+        {event.cancelled && (
+          <p className="text-xs font-medium uppercase text-red-500">Cancelled</p>
+        )}
       </button>
       <div className="flex shrink-0 items-center gap-3 pr-4">
         <Link
@@ -37,8 +50,16 @@ function EventRow({
         >
           Edit
         </Link>
-        <span className="text-xs font-medium text-emerald-700">
-          {selected ? 'Hide' : 'Mark attendance'}
+        <button
+          onClick={onToggleCancelled}
+          className="text-xs text-slate-400 hover:text-red-600 hover:underline"
+        >
+          {event.cancelled ? 'Reinstate' : 'Cancel'}
+        </button>
+        <span
+          className={`text-xs font-medium ${event.cancelled ? 'text-slate-400' : 'text-emerald-700'}`}
+        >
+          {selected ? 'Hide' : event.cancelled ? 'Details' : 'Mark attendance'}
         </span>
       </div>
     </div>
@@ -79,6 +100,11 @@ export function AttendancePage() {
     )
   }
 
+  const toggleCancelled = (event: TeamEvent) => {
+    if (!teamId) return
+    updateDoc(eventDoc(teamId, event.id), { cancelled: !event.cancelled })
+  }
+
   const playerName = (playerId: string) => {
     const player = players.find((p) => p.id === playerId)
     return player ? `${player.firstName} ${player.lastName}` : 'Unknown player'
@@ -109,12 +135,19 @@ export function AttendancePage() {
               teamId={teamId as string}
               selected={eventId === justHappened.id}
               onSelect={() => selectEvent(justHappened.id)}
+              onToggleCancelled={() => toggleCancelled(justHappened)}
               highlighted={justHappened.id === highlightEventId}
             />
           </div>
           {eventId === justHappened.id && teamId && (
             <div className="pl-1">
-              <AttendanceMarker teamId={teamId} eventId={eventId} />
+              {justHappened.cancelled ? (
+                <p className="px-3 py-1 text-sm text-slate-500">
+                  This session was cancelled — no attendance recorded.
+                </p>
+              ) : (
+                <AttendanceMarker teamId={teamId} eventId={eventId} />
+              )}
             </div>
           )}
 
@@ -138,11 +171,18 @@ export function AttendancePage() {
                       teamId={teamId as string}
                       selected={eventId === event.id}
                       onSelect={() => selectEvent(event.id)}
+                      onToggleCancelled={() => toggleCancelled(event)}
                       highlighted={event.id === highlightEventId}
                     />
                     {eventId === event.id && teamId && (
                       <div className="px-4 pb-3">
-                        <AttendanceMarker teamId={teamId} eventId={eventId} />
+                        {event.cancelled ? (
+                          <p className="text-sm text-slate-500">
+                            This session was cancelled — no attendance recorded.
+                          </p>
+                        ) : (
+                          <AttendanceMarker teamId={teamId} eventId={eventId} />
+                        )}
                       </div>
                     )}
                   </li>

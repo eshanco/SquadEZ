@@ -48,7 +48,9 @@ export function useAttendanceStats(teamId: string | undefined) {
       try {
         const now = Date.now()
         const pastEvents = events.filter((e) => e.startAt < now)
-        const trainingEvents = pastEvents.filter((e) => e.type === 'practice')
+        // Cancelled training never happened, so it shouldn't count toward
+        // sessions run or drag down anyone's attendance percentage.
+        const trainingEvents = pastEvents.filter((e) => e.type === 'practice' && !e.cancelled)
         const matchEvents = pastEvents.filter((e) => e.type === 'game')
         const activePlayers = players.filter((p) => p.active)
 

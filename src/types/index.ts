@@ -54,6 +54,7 @@ export interface TeamEvent {
   location: string
   opponent: string | null
   competition: CompetitionType | null
+  cancelled: boolean
   notes: string
   createdBy: string
   createdAt: number

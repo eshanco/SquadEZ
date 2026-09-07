@@ -25,6 +25,25 @@ function withComputedLabels(periods: LineupPeriod[]): LineupPeriod[] {
   })
 }
 
+// The pitch only has room to show a player's first name - when two players
+// on the roster share one, disambiguate both with their last initial (e.g.
+// "John S.") so a compact chip never reads as ambiguous.
+function buildDisplayNames(players: Player[]): Map<string, string> {
+  const firstNameCounts = new Map<string, number>()
+  for (const player of players) {
+    firstNameCounts.set(player.firstName, (firstNameCounts.get(player.firstName) ?? 0) + 1)
+  }
+  const displayNames = new Map<string, string>()
+  for (const player of players) {
+    const isDuplicate = (firstNameCounts.get(player.firstName) ?? 0) > 1
+    displayNames.set(
+      player.id,
+      isDuplicate ? `${player.firstName} ${player.lastName.charAt(0)}.` : player.firstName,
+    )
+  }
+  return displayNames
+}
+
 function MinutesSummaryTable({
   periods,
   players,
@@ -84,7 +103,7 @@ function BenchDropZone({ children }: { children: React.ReactNode }) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex min-h-16 flex-wrap gap-2 rounded-md border-2 border-dashed p-2 ${
+      className={`flex min-h-16 flex-col gap-2 rounded-md border-2 border-dashed p-2 ${
         isOver ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'
       }`}
     >
@@ -145,6 +164,7 @@ export function LineupPage({ event }: { event: TeamEvent }) {
 
   const activePlayers = players.filter((p) => p.active)
   const playersById = new Map(activePlayers.map((p) => [p.id, p]))
+  const displayNames = buildDisplayNames(activePlayers)
   const availablePlayers = activePlayers.filter((p) => !unavailablePlayerIds.includes(p.id))
   const unavailablePlayers = activePlayers.filter((p) => unavailablePlayerIds.includes(p.id))
   const selectedFormation = formations.find((f) => f.id === formationId) ?? formations[0]
@@ -165,6 +185,16 @@ export function LineupPage({ event }: { event: TeamEvent }) {
 
   const markAvailable = (playerId: string) => {
     setUnavailablePlayerIds((ids) => ids.filter((id) => id !== playerId))
+  }
+
+  const removeFromPitch = (slotId: string) => {
+    setPeriods((prev) =>
+      prev.map((period, i) =>
+        i === selectedPeriodIndex
+          ? { ...period, assignments: period.assignments.filter((a) => a.slotId !== slotId) }
+          : period,
+      ),
+    )
   }
 
   const addPeriod = () => {
@@ -362,7 +392,7 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                             >
                               {player ? (
                                 <span className="w-full truncate text-[10px] font-semibold text-white">
-                                  {player.firstName}
+                                  {displayNames.get(player.id) ?? player.firstName}
                                 </span>
                               ) : (
                                 <span className="text-[10px] font-semibold text-white/90">
@@ -576,6 +606,8 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                           slot={slot}
                           player={player}
                           dragId={player ? `slot:${slot.id}` : null}
+                          onRemove={player ? () => removeFromPitch(slot.id) : undefined}
+                          displayName={player ? displayNames.get(player.id) : undefined}
                         />
                       )
                     })}
