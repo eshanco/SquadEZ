@@ -3,7 +3,7 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { db } from '../firebase/config'
 import { eventDoc, eventsCollection } from '../firebase/firestore'
-import type { CompetitionType, EventType, TeamEvent } from '../types'
+import type { CompetitionType, EventType, HomeAway, TeamEvent } from '../types'
 import {
   fromDateTimeLocalInputValue,
   roundUpToNextHour,
@@ -14,6 +14,7 @@ const GAME_DURATION_MINUTES = 90
 const DATETIME_STEP_SECONDS = 300 // 5 minute increments
 
 const COMPETITION_TYPES: CompetitionType[] = ['league', 'cup', 'friendly']
+const HOME_AWAY_TYPES: HomeAway[] = ['home', 'away']
 
 const emptyFormShape = {
   type: 'practice' as EventType,
@@ -23,9 +24,23 @@ const emptyFormShape = {
   location: '',
   opponent: '',
   competition: 'league' as CompetitionType,
+  homeAway: 'home' as HomeAway,
+  htHome: '',
+  htAway: '',
+  ftHome: '',
+  ftAway: '',
   notes: '',
   repeatWeekly: false,
   repeatUntil: '',
+}
+
+// Empty string means "not entered yet" - distinct from an actual 0-0 score.
+function parseScoreInput(value: string): number | null {
+  return value === '' ? null : Number(value)
+}
+
+function scoreInputValue(value: number | null | undefined): string {
+  return value == null ? '' : String(value)
 }
 
 function makeEmptyForm(initialType: EventType): typeof emptyFormShape {
@@ -89,6 +104,11 @@ export function EventDetailPage() {
           location: data.location,
           opponent: data.opponent ?? '',
           competition: data.competition ?? 'league',
+          homeAway: data.homeAway ?? 'home',
+          htHome: scoreInputValue(data.score?.halftimeHome),
+          htAway: scoreInputValue(data.score?.halftimeAway),
+          ftHome: scoreInputValue(data.score?.fulltimeHome),
+          ftAway: scoreInputValue(data.score?.fulltimeAway),
           notes: data.notes,
           repeatWeekly: false,
           repeatUntil: '',
@@ -116,6 +136,15 @@ export function EventDetailPage() {
         location: form.location,
         opponent: isGame ? form.opponent.trim() : null,
         competition: isGame ? form.competition : null,
+        homeAway: isGame ? form.homeAway : null,
+        score: isGame
+          ? {
+              halftimeHome: parseScoreInput(form.htHome),
+              halftimeAway: parseScoreInput(form.htAway),
+              fulltimeHome: parseScoreInput(form.ftHome),
+              fulltimeAway: parseScoreInput(form.ftAway),
+            }
+          : null,
         notes: form.notes,
       }
       if (isNew) {
@@ -220,6 +249,68 @@ export function EventDetailPage() {
                     {c.charAt(0).toUpperCase() + c.slice(1)}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Venue</label>
+              <div className="flex gap-2">
+                {HOME_AWAY_TYPES.map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, homeAway: h }))}
+                    className={toggleClass(form.homeAway === h)}
+                  >
+                    {h.charAt(0).toUpperCase() + h.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Score</label>
+              <div className="flex flex-wrap gap-3">
+                <div>
+                  <p className="mb-1 text-xs text-slate-500">Half-time (H–A)</p>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.htHome}
+                      onChange={(e) => setForm((f) => ({ ...f, htHome: e.target.value }))}
+                      className="w-14 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                    <span className="text-slate-400">–</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.htAway}
+                      onChange={(e) => setForm((f) => ({ ...f, htAway: e.target.value }))}
+                      className="w-14 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-slate-500">Full-time (H–A)</p>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.ftHome}
+                      onChange={(e) => setForm((f) => ({ ...f, ftHome: e.target.value }))}
+                      className="w-14 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                    <span className="text-slate-400">–</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.ftAway}
+                      onChange={(e) => setForm((f) => ({ ...f, ftAway: e.target.value }))}
+                      className="w-14 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 

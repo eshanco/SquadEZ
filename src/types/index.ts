@@ -44,6 +44,17 @@ export interface Player {
 
 export type EventType = 'practice' | 'game'
 export type CompetitionType = 'league' | 'cup' | 'friendly'
+export type HomeAway = 'home' | 'away'
+
+// Goals scored by the home team and away team - independent of which side
+// this team played on, so it reads the same as a scoreboard. Use the
+// event's `homeAway` to work out which column is "us" for a given game.
+export interface GameScore {
+  halftimeHome: number | null
+  halftimeAway: number | null
+  fulltimeHome: number | null
+  fulltimeAway: number | null
+}
 
 export interface TeamEvent {
   id: string
@@ -54,6 +65,8 @@ export interface TeamEvent {
   location: string
   opponent: string | null
   competition: CompetitionType | null
+  homeAway: HomeAway | null
+  score: GameScore | null
   cancelled: boolean
   notes: string
   createdBy: string
