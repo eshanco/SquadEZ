@@ -345,6 +345,14 @@ export function LineupPage({ event }: { event: TeamEvent }) {
 
   if (loading) return <p className="text-slate-500">Loading lineup…</p>
 
+  // All rows share one grid column count (the widest row's slot count), so
+  // every jersey renders at the same size regardless of which row it's in -
+  // a sparse GK/FWD row just leaves its unused columns empty and centered,
+  // rather than each row independently stretching its own slots to fill
+  // the width (which squashed rows with more slots, like DEF/MID).
+  const pitchRows = selectedFormation ? formationRows(selectedFormation) : []
+  const pitchColumns = Math.max(1, ...pitchRows.map((row) => row.length))
+
   if (readOnly) {
     return (
       <div className="max-w-2xl space-y-6">
@@ -389,32 +397,36 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                 <p className="text-sm text-slate-500">{selectedPeriod.label} min</p>
 
                 <div className="space-y-4">
-                  <div className="relative mx-auto flex w-full max-w-2xl flex-col gap-2 overflow-hidden rounded-lg bg-emerald-600 p-4">
+                  <div
+                    className="relative mx-auto grid w-full max-w-2xl gap-x-2 gap-y-3 overflow-hidden rounded-lg bg-emerald-600 p-4"
+                    style={{ gridTemplateColumns: `repeat(${pitchColumns}, minmax(0, 1fr))` }}
+                  >
                     <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/30" />
                     <div className="pointer-events-none absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30" />
-                    {formationRows(selectedFormation).map((row, rowIndex) => (
-                      <div
-                        key={rowIndex}
-                        className="relative z-10 flex items-center justify-center gap-3 px-3"
-                      >
-                        {row.map((slot) => {
-                          const assignment = selectedPeriod.assignments.find(
-                            (a) => a.slotId === slot.id,
-                          )
-                          const player = assignment
-                            ? (playersById.get(assignment.playerId) ?? null)
-                            : null
-                          return (
+                    {pitchRows.map((row, rowIndex) => {
+                      const startColumn = Math.floor((pitchColumns - row.length) / 2) + 1
+                      return row.map((slot, colIndex) => {
+                        const assignment = selectedPeriod.assignments.find(
+                          (a) => a.slotId === slot.id,
+                        )
+                        const player = assignment
+                          ? (playersById.get(assignment.playerId) ?? null)
+                          : null
+                        return (
+                          <div
+                            key={slot.id}
+                            className="relative z-10"
+                            style={{ gridColumn: startColumn + colIndex, gridRow: rowIndex + 1 }}
+                          >
                             <PitchSlot
-                              key={slot.id}
                               slot={slot}
                               player={player}
                               displayName={player ? displayNames.get(player.id) : undefined}
                             />
-                          )
-                        })}
-                      </div>
-                    ))}
+                          </div>
+                        )
+                      })
+                    })}
                   </div>
 
                   <div>
@@ -611,29 +623,36 @@ export function LineupPage({ event }: { event: TeamEvent }) {
           </div>
 
           <div className="space-y-4">
-            <div className="relative mx-auto flex w-full max-w-2xl flex-col gap-2 overflow-hidden rounded-lg bg-emerald-600 p-4">
+            <div
+              className="relative mx-auto grid w-full max-w-2xl gap-x-2 gap-y-3 overflow-hidden rounded-lg bg-emerald-600 p-4"
+              style={{ gridTemplateColumns: `repeat(${pitchColumns}, minmax(0, 1fr))` }}
+            >
               <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/30" />
               <div className="pointer-events-none absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30" />
-              {formationRows(selectedFormation).map((row, rowIndex) => (
-                <div key={rowIndex} className="relative z-10 flex items-center justify-center gap-3 px-3">
-                  {row.map((slot) => {
-                    const assignment = selectedPeriod.assignments.find(
-                      (a) => a.slotId === slot.id,
-                    )
-                    const player = assignment ? (playersById.get(assignment.playerId) ?? null) : null
-                    return (
+              {pitchRows.map((row, rowIndex) => {
+                const startColumn = Math.floor((pitchColumns - row.length) / 2) + 1
+                return row.map((slot, colIndex) => {
+                  const assignment = selectedPeriod.assignments.find(
+                    (a) => a.slotId === slot.id,
+                  )
+                  const player = assignment ? (playersById.get(assignment.playerId) ?? null) : null
+                  return (
+                    <div
+                      key={slot.id}
+                      className="relative z-10"
+                      style={{ gridColumn: startColumn + colIndex, gridRow: rowIndex + 1 }}
+                    >
                       <PitchSlot
-                        key={slot.id}
                         slot={slot}
                         player={player}
                         onClick={() => setPickerSlotId(slot.id)}
                         onRemove={player ? () => removeFromPitch(slot.id) : undefined}
                         displayName={player ? displayNames.get(player.id) : undefined}
                       />
-                    )
-                  })}
-                </div>
-              ))}
+                    </div>
+                  )
+                })
+              })}
             </div>
 
             <div>

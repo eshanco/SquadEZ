@@ -1,9 +1,12 @@
 import type { FormationSlot, Player } from '../../types'
 
-// A short-sleeve jersey silhouette (v-neck, two sleeves), traced in a 64x64
-// box so it scales cleanly at any slot size.
+// A cap-sleeve jersey silhouette (v-neck, short sleeves), traced in a 64x80
+// (4:5) box so it scales cleanly at any slot size without distorting -
+// every slot renders at the same width/aspect ratio regardless of how many
+// slots share its row, so a crowded DEF/MID row doesn't squash its jerseys
+// narrower than a sparser GK/FW row.
 const JERSEY_PATH =
-  'M26,4 L16,4 L2,14 L10,26 L18,22 L18,60 L46,60 L46,22 L54,26 L62,14 L48,4 L38,4 Q32,12 26,4 Z'
+  'M26,5 L16,5 L10,16 L16,28 L18,26 L18,76 L46,76 L46,26 L48,28 L54,16 L48,5 L38,5 Q32,14 26,5 Z'
 
 export function PitchSlot({
   slot,
@@ -23,12 +26,12 @@ export function PitchSlot({
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      className={`relative flex h-[6rem] min-w-0 max-w-[9rem] flex-1 flex-col items-center justify-center text-center transition-transform ${
+      className={`relative flex aspect-[4/5] w-full min-w-0 flex-col items-center justify-center text-center transition-transform ${
         onClick ? 'cursor-pointer hover:scale-105' : ''
       }`}
     >
       <svg
-        viewBox="0 0 64 64"
+        viewBox="0 0 64 80"
         preserveAspectRatio="none"
         className="absolute inset-0 h-full w-full"
         aria-hidden="true"
