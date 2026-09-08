@@ -1,9 +1,9 @@
-import { DndContext, type DragEndEvent, useDroppable } from '@dnd-kit/core'
 import { addDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { PitchSlot } from '../components/lineup/PitchSlot'
 import { PlayerChip } from '../components/lineup/PlayerChip'
+import { PlayerPickerModal } from '../components/lineup/PlayerPickerModal'
 import { useAuthContext } from '../contexts/AuthContext'
 import { formationsCollection, lineupDoc } from '../firebase/firestore'
 import { useFormations } from '../hooks/useFormations'
@@ -98,16 +98,58 @@ function MinutesSummaryTable({
   )
 }
 
-function BenchDropZone({ children }: { children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({ id: 'bench' })
+// Shows who came on and who went off between the previous period and this
+// one, by diffing assignments on playerId. The very first period has no
+// prior period to diff against, so callers should skip rendering this then.
+function SubstitutionsSummary({
+  previousPeriod,
+  currentPeriod,
+  playersById,
+}: {
+  previousPeriod: LineupPeriod
+  currentPeriod: LineupPeriod
+  playersById: Map<string, Player>
+}) {
+  const previousIds = new Set(previousPeriod.assignments.map((a) => a.playerId))
+  const currentIds = new Set(currentPeriod.assignments.map((a) => a.playerId))
+
+  const cameOn = currentPeriod.assignments.filter((a) => !previousIds.has(a.playerId))
+  const wentOff = previousPeriod.assignments.filter((a) => !currentIds.has(a.playerId))
+
+  const nameAndPosition = (playerId: string, position: string) => {
+    const player = playersById.get(playerId)
+    if (!player) return null
+    return `${player.firstName} ${player.lastName} (${position})`
+  }
+
+  if (cameOn.length === 0 && wentOff.length === 0) {
+    return <p className="text-xs text-slate-400">No changes from {previousPeriod.label}.</p>
+  }
+
   return (
-    <div
-      ref={setNodeRef}
-      className={`flex min-h-16 flex-col gap-2 rounded-md border-2 border-dashed p-2 ${
-        isOver ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'
-      }`}
-    >
-      {children}
+    <div className="space-y-1 text-xs">
+      {cameOn.length > 0 && (
+        <p>
+          <span className="font-medium text-emerald-700">On: </span>
+          <span className="text-slate-600">
+            {cameOn
+              .map((a) => nameAndPosition(a.playerId, a.position))
+              .filter(Boolean)
+              .join(', ')}
+          </span>
+        </p>
+      )}
+      {wentOff.length > 0 && (
+        <p>
+          <span className="font-medium text-red-700">Off: </span>
+          <span className="text-slate-600">
+            {wentOff
+              .map((a) => nameAndPosition(a.playerId, a.position))
+              .filter(Boolean)
+              .join(', ')}
+          </span>
+        </p>
+      )}
     </div>
   )
 }
@@ -129,6 +171,7 @@ export function LineupPage({ event }: { event: TeamEvent }) {
   const [unavailablePlayerIds, setUnavailablePlayerIds] = useState<string[]>([])
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [pickerSlotId, setPickerSlotId] = useState<string | null>(null)
 
   const [newFormationOpen, setNewFormationOpen] = useState(false)
   const [newFormationName, setNewFormationName] = useState('')
@@ -172,6 +215,14 @@ export function LineupPage({ event }: { event: TeamEvent }) {
 
   const assignedPlayerIds = new Set(selectedPeriod?.assignments.map((a) => a.playerId) ?? [])
   const benchPlayers = availablePlayers.filter((p) => !assignedPlayerIds.has(p.id))
+  const assignedSlotLabelByPlayer = new Map(
+    (selectedPeriod?.assignments ?? []).map((a) => [a.playerId, a.position]),
+  )
+  const pickerSlot = selectedFormation?.slots.find((s) => s.id === pickerSlotId) ?? null
+  const pickerCurrentOccupantId = pickerSlot
+    ? (selectedPeriod?.assignments.find((a) => a.slotId === pickerSlot.id)?.playerId ?? null)
+    : null
+  const pickerCandidates = availablePlayers.filter((p) => p.id !== pickerCurrentOccupantId)
 
   const markUnavailable = (playerId: string) => {
     setUnavailablePlayerIds((ids) => [...ids, playerId])
@@ -228,61 +279,18 @@ export function LineupPage({ event }: { event: TeamEvent }) {
     updateSelectedPeriod({ assignments: previous.assignments.map((a) => ({ ...a })) })
   }
 
-  const handleDragEnd = (dragEvent: DragEndEvent) => {
-    if (!selectedFormation) return
-    const activeId = String(dragEvent.active.id)
-    const overId = dragEvent.over ? String(dragEvent.over.id) : null
-    if (!overId) return
-
+  // Assigns playerId to slotId, benching whoever previously held that slot
+  // and vacating any other slot the player was already occupying.
+  const assignPlayerToSlot = (playerId: string, slotId: string) => {
+    const slot = selectedFormation?.slots.find((s) => s.id === slotId)
+    if (!slot) return
     setPeriods((prev) =>
-      prev.map((period, idx) => {
-        if (idx !== selectedPeriodIndex) return period
-
-        let sourcePlayerId: string
-        let sourceSlotId: string | null = null
-        if (activeId.startsWith('bench:')) {
-          sourcePlayerId = activeId.slice('bench:'.length)
-        } else if (activeId.startsWith('slot:')) {
-          sourceSlotId = activeId.slice('slot:'.length)
-          const found = period.assignments.find((a) => a.slotId === sourceSlotId)
-          if (!found) return period
-          sourcePlayerId = found.playerId
-        } else {
-          return period
-        }
-
-        if (overId === 'bench') {
-          if (!sourceSlotId) return period // already on the bench
-          return {
-            ...period,
-            assignments: period.assignments.filter((a) => a.slotId !== sourceSlotId),
-          }
-        }
-
-        if (!overId.startsWith('slot:')) return period
-        const targetSlotId = overId.slice('slot:'.length)
-        if (targetSlotId === sourceSlotId) return period
-
-        const targetSlot = selectedFormation.slots.find((s) => s.id === targetSlotId)
-        if (!targetSlot) return period
-
-        const targetOccupant = period.assignments.find((a) => a.slotId === targetSlotId)
+      prev.map((period, i) => {
+        if (i !== selectedPeriodIndex) return period
         const next = period.assignments.filter(
-          (a) => a.slotId !== sourceSlotId && a.slotId !== targetSlotId,
+          (a) => a.slotId !== slotId && a.playerId !== playerId,
         )
-        next.push({ playerId: sourcePlayerId, slotId: targetSlotId, position: targetSlot.label })
-
-        if (targetOccupant && sourceSlotId) {
-          const sourceSlot = selectedFormation.slots.find((s) => s.id === sourceSlotId)
-          if (sourceSlot) {
-            next.push({
-              playerId: targetOccupant.playerId,
-              slotId: sourceSlotId,
-              position: sourceSlot.label,
-            })
-          }
-        }
-
+        next.push({ playerId, slotId, position: slot.label })
         return { ...period, assignments: next }
       }),
     )
@@ -369,14 +377,14 @@ export function LineupPage({ event }: { event: TeamEvent }) {
               <div className="space-y-4">
                 <p className="text-sm text-slate-500">{selectedPeriod.label} min</p>
 
-                <div className="flex flex-col gap-4 sm:flex-row">
-                  <div className="relative flex aspect-[3/4] w-full max-w-sm flex-col-reverse justify-between gap-3 overflow-hidden rounded-lg bg-emerald-600 p-3 sm:w-72">
+                <div className="space-y-4">
+                  <div className="relative mx-auto flex w-full max-w-2xl flex-col gap-2 overflow-hidden rounded-lg bg-emerald-600 p-4">
                     <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/30" />
                     <div className="pointer-events-none absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30" />
                     {formationRows(selectedFormation).map((row, rowIndex) => (
                       <div
                         key={rowIndex}
-                        className="relative z-10 flex items-center justify-center gap-1 px-1"
+                        className="relative z-10 flex items-center justify-center gap-3 px-3"
                       >
                         {row.map((slot) => {
                           const assignment = selectedPeriod.assignments.find(
@@ -386,27 +394,19 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                             ? (playersById.get(assignment.playerId) ?? null)
                             : null
                           return (
-                            <div
+                            <PitchSlot
                               key={slot.id}
-                              className="flex h-12 min-w-0 max-w-16 flex-1 flex-col items-center justify-center overflow-hidden rounded-md border-2 border-dashed border-white/40 p-1 text-center"
-                            >
-                              {player ? (
-                                <span className="w-full truncate text-[10px] font-semibold text-white">
-                                  {displayNames.get(player.id) ?? player.firstName}
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-semibold text-white/90">
-                                  {slot.label}
-                                </span>
-                              )}
-                            </div>
+                              slot={slot}
+                              player={player}
+                              displayName={player ? displayNames.get(player.id) : undefined}
+                            />
                           )
                         })}
                       </div>
                     ))}
                   </div>
 
-                  <div className="flex-1">
+                  <div>
                     <h2 className="mb-2 text-sm font-medium text-slate-700">
                       Bench ({benchPlayers.length})
                     </h2>
@@ -422,6 +422,17 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                             #{player.jerseyNumber} {player.firstName}
                           </span>
                         ))}
+                      </div>
+                    )}
+
+                    {selectedPeriodIndex > 0 && (
+                      <div className="mt-4">
+                        <h2 className="mb-2 text-sm font-medium text-slate-700">Substitutions</h2>
+                        <SubstitutionsSummary
+                          previousPeriod={periods[selectedPeriodIndex - 1]}
+                          currentPeriod={selectedPeriod}
+                          playersById={playersById}
+                        />
                       </div>
                     )}
 
@@ -588,87 +599,107 @@ export function LineupPage({ event }: { event: TeamEvent }) {
             )}
           </div>
 
-          <DndContext onDragEnd={handleDragEnd}>
-            <div className="flex flex-col gap-4 sm:flex-row">
-              <div className="relative flex aspect-[3/4] w-full max-w-sm flex-col-reverse justify-between gap-3 overflow-hidden rounded-lg bg-emerald-600 p-3 sm:w-72">
-                <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/30" />
-                <div className="pointer-events-none absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30" />
-                {formationRows(selectedFormation).map((row, rowIndex) => (
-                  <div key={rowIndex} className="relative z-10 flex items-center justify-center gap-1 px-1">
-                    {row.map((slot) => {
-                      const assignment = selectedPeriod.assignments.find(
-                        (a) => a.slotId === slot.id,
-                      )
-                      const player = assignment ? (playersById.get(assignment.playerId) ?? null) : null
-                      return (
-                        <PitchSlot
-                          key={slot.id}
-                          slot={slot}
-                          player={player}
-                          dragId={player ? `slot:${slot.id}` : null}
-                          onRemove={player ? () => removeFromPitch(slot.id) : undefined}
-                          displayName={player ? displayNames.get(player.id) : undefined}
-                        />
-                      )
-                    })}
-                  </div>
-                ))}
-              </div>
+          <div className="space-y-4">
+            <div className="relative mx-auto flex w-full max-w-2xl flex-col gap-2 overflow-hidden rounded-lg bg-emerald-600 p-4">
+              <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/30" />
+              <div className="pointer-events-none absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30" />
+              {formationRows(selectedFormation).map((row, rowIndex) => (
+                <div key={rowIndex} className="relative z-10 flex items-center justify-center gap-3 px-3">
+                  {row.map((slot) => {
+                    const assignment = selectedPeriod.assignments.find(
+                      (a) => a.slotId === slot.id,
+                    )
+                    const player = assignment ? (playersById.get(assignment.playerId) ?? null) : null
+                    return (
+                      <PitchSlot
+                        key={slot.id}
+                        slot={slot}
+                        player={player}
+                        onClick={() => setPickerSlotId(slot.id)}
+                        onRemove={player ? () => removeFromPitch(slot.id) : undefined}
+                        displayName={player ? displayNames.get(player.id) : undefined}
+                      />
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
 
-              <div className="flex-1">
-                <h2 className="mb-2 text-sm font-medium text-slate-700">
-                  Squad ({benchPlayers.length})
-                </h2>
-                <BenchDropZone>
-                  {benchPlayers.length === 0 ? (
-                    <p className="text-xs text-slate-400">
-                      Everyone's on the pitch — drag a player here to bench them.
-                    </p>
-                  ) : (
-                    benchPlayers.map((player) => (
-                      <div key={player.id} className="relative">
-                        <PlayerChip dragId={`bench:${player.id}`} player={player} />
-                        <button
-                          onClick={() => markUnavailable(player.id)}
-                          aria-label={`Remove ${player.firstName} from available squad`}
-                          title="Not available for this one"
-                          className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-400 text-[10px] leading-none text-white hover:bg-red-500"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </BenchDropZone>
-
-                {unavailablePlayers.length > 0 && (
-                  <div className="mt-4">
-                    <h2 className="mb-2 text-sm font-medium text-slate-700">
-                      Unavailable ({unavailablePlayers.length})
-                    </h2>
-                    <ul className="space-y-1">
-                      {unavailablePlayers.map((player) => (
-                        <li
-                          key={player.id}
-                          className="flex items-center justify-between rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-500"
-                        >
-                          <span>
-                            {player.firstName} {player.lastName}
-                          </span>
-                          <button
-                            onClick={() => markAvailable(player.id)}
-                            className="text-emerald-700 hover:underline"
-                          >
-                            + Add back
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+            <div>
+              <h2 className="mb-2 text-sm font-medium text-slate-700">
+                Bench ({benchPlayers.length})
+              </h2>
+              <div className="flex min-h-16 flex-wrap gap-2 rounded-md border-2 border-dashed border-slate-200 p-2">
+                {benchPlayers.length === 0 ? (
+                  <p className="text-xs text-slate-400">Everyone's on the pitch.</p>
+                ) : (
+                  benchPlayers.map((player) => (
+                    <div key={player.id} className="relative">
+                      <PlayerChip player={player} />
+                      <button
+                        onClick={() => markUnavailable(player.id)}
+                        aria-label={`Remove ${player.firstName} from available squad`}
+                        title="Not available for this one"
+                        className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-400 text-[10px] leading-none text-white hover:bg-red-500"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))
                 )}
               </div>
+
+              {selectedPeriodIndex > 0 && (
+                <div className="mt-4">
+                  <h2 className="mb-2 text-sm font-medium text-slate-700">Substitutions</h2>
+                  <SubstitutionsSummary
+                    previousPeriod={periods[selectedPeriodIndex - 1]}
+                    currentPeriod={selectedPeriod}
+                    playersById={playersById}
+                  />
+                </div>
+              )}
+
+              {unavailablePlayers.length > 0 && (
+                <div className="mt-4">
+                  <h2 className="mb-2 text-sm font-medium text-slate-700">
+                    Unavailable ({unavailablePlayers.length})
+                  </h2>
+                  <ul className="space-y-1">
+                    {unavailablePlayers.map((player) => (
+                      <li
+                        key={player.id}
+                        className="flex items-center justify-between rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-500"
+                      >
+                        <span>
+                          {player.firstName} {player.lastName}
+                        </span>
+                        <button
+                          onClick={() => markAvailable(player.id)}
+                          className="text-emerald-700 hover:underline"
+                        >
+                          + Add back
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
-          </DndContext>
+          </div>
+
+          {pickerSlot && (
+            <PlayerPickerModal
+              slot={pickerSlot}
+              players={pickerCandidates}
+              assignedSlotLabelByPlayer={assignedSlotLabelByPlayer}
+              onSelect={(playerId) => {
+                assignPlayerToSlot(playerId, pickerSlot.id)
+                setPickerSlotId(null)
+              }}
+              onClose={() => setPickerSlotId(null)}
+            />
+          )}
         </div>
       )}
 

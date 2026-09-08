@@ -1,4 +1,4 @@
-import type { CustomFormationDoc, Formation, FormationSlot } from '../types'
+import type { CustomFormationDoc, Formation, FormationSlot, PositionGroup } from '../types'
 
 function buildSlots(rows: { label: string; count: number }[]): FormationSlot[] {
   const slots: FormationSlot[] = []
@@ -93,6 +93,28 @@ export function customFormationToFormation(id: string, doc: CustomFormationDoc):
     rows.push({ label, count })
   })
   return { id, name: doc.name, isCustom: true, slots: buildSlots(rows) }
+}
+
+const POSITION_ORDER: PositionGroup[] = ['GK', 'DEF', 'MID', 'FW']
+
+// Maps a slot's free-text label (e.g. "DEF 2", "DM", "AM", "FWD") to the
+// PositionGroup category it represents, so player.positions can be matched
+// against it. DM/AM (4-2-3-1) both count as MID.
+export function slotPositionGroup(slot: FormationSlot): PositionGroup {
+  const key = slot.label.split(' ')[0]
+  if (key === 'GK') return 'GK'
+  if (key === 'DEF') return 'DEF'
+  if (key === 'FWD') return 'FW'
+  return 'MID' // MID, DM, AM
+}
+
+// The order in which position categories should be listed when picking a
+// player for a slot: the slot's own category first, then the rest in their
+// usual GK -> DEF -> MID -> FW sequence, wrapping around. e.g. clicking a DEF
+// slot yields [DEF, MID, FW, GK].
+export function positionPickOrder(start: PositionGroup): PositionGroup[] {
+  const i = POSITION_ORDER.indexOf(start)
+  return [...POSITION_ORDER.slice(i), ...POSITION_ORDER.slice(0, i)]
 }
 
 export function formationRows(formation: Formation): FormationSlot[][] {
