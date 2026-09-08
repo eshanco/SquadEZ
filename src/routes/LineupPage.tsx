@@ -190,8 +190,13 @@ export function LineupPage({ event }: { event: TeamEvent }) {
   // hides the pitch entirely - seed one default period once loading settles
   // and confirms there's really nothing saved, so the pitch is visible
   // immediately instead of behind an easy-to-miss "+ Add period" click.
+  // Gated on `!lineup` rather than `periods.length === 0`: when a saved
+  // lineup exists, this effect and the one above both fire in the same
+  // render (setLineup/setLoading are batched), and `periods` here would
+  // still read its pre-update value - seeding a blank period on top of one
+  // that's about to be populated from `lineup.periods`.
   useEffect(() => {
-    if (!loading && !readOnly && periods.length === 0) {
+    if (!loading && !readOnly && !lineup && periods.length === 0) {
       setPeriods(
         withComputedLabels([
           {
@@ -203,7 +208,7 @@ export function LineupPage({ event }: { event: TeamEvent }) {
         ]),
       )
     }
-  }, [loading, readOnly, periods.length])
+  }, [loading, readOnly, lineup, periods.length])
 
   const activePlayers = players.filter((p) => p.active)
   const playersById = new Map(activePlayers.map((p) => [p.id, p]))
