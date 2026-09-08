@@ -11,6 +11,11 @@ export const membersCollection = (teamId: string) => collection(db, 'teams', tea
 export const memberDoc = (teamId: string, uid: string) =>
   doc(db, 'teams', teamId, 'members', uid)
 
+export const invitesCollection = (teamId: string) => collection(db, 'teams', teamId, 'invites')
+// Keyed by lowercased email since there's no uid yet to key it by.
+export const inviteDoc = (teamId: string, email: string) =>
+  doc(db, 'teams', teamId, 'invites', email.trim().toLowerCase())
+
 export const playersCollection = (teamId: string) => collection(db, 'teams', teamId, 'players')
 export const playerDoc = (teamId: string, playerId: string) =>
   doc(db, 'teams', teamId, 'players', playerId)

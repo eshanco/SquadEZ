@@ -1,6 +1,7 @@
 import { addDoc, deleteDoc, doc, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore'
 import { type FormEvent, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useTeamContext } from '../contexts/TeamContext'
 import { db } from '../firebase/config'
 import { eventDoc, eventsCollection } from '../firebase/firestore'
 import type { CompetitionType, EventType, HomeAway, TeamEvent } from '../types'
@@ -9,6 +10,7 @@ import {
   roundUpToNextHour,
   toDateTimeLocalInputValue,
 } from '../utils/dates'
+import { canEdit } from '../utils/roles'
 
 const GAME_DURATION_MINUTES = 90
 const DATETIME_STEP_SECONDS = 300 // 5 minute increments
@@ -84,6 +86,8 @@ export function EventDetailPage() {
   const { teamId, eventId } = useParams<{ teamId: string; eventId: string }>()
   const navigate = useNavigate()
   const location = useLocation()
+  const { role } = useTeamContext()
+  const editable = canEdit(role)
   const isNew = eventId === 'new'
   const initialType =
     (location.state as { initialType?: EventType } | null)?.initialType ?? 'practice'
@@ -207,6 +211,7 @@ export function EventDetailPage() {
       <h1 className="text-2xl font-semibold text-slate-900">{heading}</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        <fieldset disabled={!editable} className="m-0 min-w-0 space-y-4 border-0 p-0">
         <div className="flex gap-2">
           <button
             type="button"
@@ -414,25 +419,28 @@ export function EventDetailPage() {
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
+        </fieldset>
 
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save event'}
-          </button>
-          {!isNew && (
+        {editable && (
+          <div className="flex items-center gap-3">
             <button
-              type="button"
-              onClick={handleDelete}
-              className="text-sm text-red-600 hover:underline"
+              type="submit"
+              disabled={saving}
+              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
             >
-              Delete event
+              {saving ? 'Saving…' : 'Save event'}
             </button>
-          )}
-        </div>
+            {!isNew && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="text-sm text-red-600 hover:underline"
+              >
+                Delete event
+              </button>
+            )}
+          </div>
+        )}
       </form>
     </div>
   )

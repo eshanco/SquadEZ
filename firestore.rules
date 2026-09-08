@@ -17,6 +17,12 @@ service cloud.firestore {
         get(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid)).data.role == "owner";
     }
 
+    // Owners and coaches can edit team data; viewers are read-only.
+    function canEdit(teamId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid)).data.role in ["owner", "coach"];
+    }
+
     match /users/{uid} {
       allow read: if isSignedIn();
       allow write: if isSignedIn() && request.auth.uid == uid;
@@ -35,6 +41,14 @@ service cloud.firestore {
       allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
     }
 
+    // Same pattern as the members collection-group rule above: lets a
+    // just-signed-up user look up any pending invites addressed to their
+    // own email across every team (signUp's joinInvitedTeams), without
+    // needing to already be a member of the team the invite lives under.
+    match /{path=**}/invites/{inviteId} {
+      allow read: if isSignedIn() && resource.data.email == request.auth.token.email.lower();
+    }
+
     match /teams/{teamId} {
       allow read: if isTeamMember(teamId);
       allow create: if isSignedIn();
@@ -44,33 +58,57 @@ service cloud.firestore {
         allow read: if isTeamMember(teamId);
         // Bootstrap: the user who created the team may add themself as the
         // first (owner) member, since no owner member doc exists yet to
-        // authorize that write. Once a member doc exists, only an existing
-        // owner may add/update/remove members.
+        // authorize that write.
         allow create: if isSignedIn() &&
           memberId == request.auth.uid &&
           request.resource.data.role == "owner" &&
           get(/databases/$(database)/documents/teams/$(teamId)).data.createdBy == request.auth.uid &&
           !exists(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid));
+        // Self-join: a signed-in user may create their own member doc if a
+        // pending invite for their email exists in this team, and only with
+        // the role that invite actually grants - they can't self-escalate
+        // to owner or to a role they weren't invited as.
+        allow create: if isSignedIn() &&
+          memberId == request.auth.uid &&
+          request.resource.data.role in ["coach", "viewer"] &&
+          exists(/databases/$(database)/documents/teams/$(teamId)/invites/$(request.auth.token.email.lower())) &&
+          get(/databases/$(database)/documents/teams/$(teamId)/invites/$(request.auth.token.email.lower())).data.role == request.resource.data.role;
+        // Once a member doc exists, only an existing owner may add/update/
+        // remove members (including changing an existing coach's/viewer's
+        // role).
         allow create, update, delete: if isTeamOwner(teamId);
       }
 
+      match /invites/{inviteId} {
+        allow read, create, update: if isTeamOwner(teamId);
+        // The owner can cancel a pending invite; the invitee can also
+        // delete it themselves once they've consumed it into a member doc.
+        allow delete: if isTeamOwner(teamId) ||
+          (isSignedIn() && resource.data.email == request.auth.token.email.lower());
+      }
+
       match /players/{playerId} {
-        allow read, write: if isTeamMember(teamId);
+        allow read: if isTeamMember(teamId);
+        allow write: if canEdit(teamId);
       }
 
       match /formations/{formationId} {
-        allow read, write: if isTeamMember(teamId);
+        allow read: if isTeamMember(teamId);
+        allow write: if canEdit(teamId);
       }
 
       match /events/{eventId} {
-        allow read, write: if isTeamMember(teamId);
+        allow read: if isTeamMember(teamId);
+        allow write: if canEdit(teamId);
 
         match /rsvps/{playerId} {
-          allow read, write: if isTeamMember(teamId);
+          allow read: if isTeamMember(teamId);
+          allow write: if canEdit(teamId);
         }
 
         match /lineup/{lineupId} {
-          allow read, write: if isTeamMember(teamId);
+          allow read: if isTeamMember(teamId);
+          allow write: if canEdit(teamId);
         }
       }
     }

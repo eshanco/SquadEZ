@@ -12,21 +12,39 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useAuthContext } from '../contexts/AuthContext'
 import { useTeamContext } from '../contexts/TeamContext'
-import { memberDoc, membersCollection, teamDoc, usersCollection } from '../firebase/firestore'
-import type { TeamMember } from '../types'
+import {
+  inviteDoc,
+  invitesCollection,
+  memberDoc,
+  membersCollection,
+  teamDoc,
+  usersCollection,
+} from '../firebase/firestore'
+import type { InviteRole, TeamInvite, TeamMember } from '../types'
+
+const INVITE_ROLES: InviteRole[] = ['coach', 'viewer']
+
+function toggleClass(active: boolean) {
+  return `flex-1 rounded-md px-3 py-2 text-center text-sm font-medium ${
+    active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+  }`
+}
 
 export function TeamSettingsPage() {
   const { teamId } = useParams<{ teamId: string }>()
   const { user } = useAuthContext()
   const { team, role } = useTeamContext()
   const [members, setMembers] = useState<TeamMember[]>([])
+  const [invites, setInvites] = useState<(TeamInvite & { id: string })[]>([])
   const [name, setName] = useState('')
   const [ageGroup, setAgeGroup] = useState('')
   const [season, setSeason] = useState('')
   const [savingTeam, setSavingTeam] = useState(false)
-  const [addEmail, setAddEmail] = useState('')
-  const [addError, setAddError] = useState<string | null>(null)
-  const [adding, setAdding] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<InviteRole>('coach')
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteSent, setInviteSent] = useState<string | null>(null)
+  const [inviting, setInviting] = useState(false)
 
   const isOwner = role === 'owner'
 
@@ -49,6 +67,17 @@ export function TeamSettingsPage() {
     )
   }, [teamId])
 
+  useEffect(() => {
+    if (!teamId || !isOwner) return
+    return onSnapshot(
+      invitesCollection(teamId),
+      (snapshot) => {
+        setInvites(snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as TeamInvite) })))
+      },
+      (err) => console.error('Failed to load pending invites:', err),
+    )
+  }, [teamId, isOwner])
+
   const handleSaveTeam = async (event: FormEvent) => {
     event.preventDefault()
     if (!teamId) return
@@ -60,35 +89,52 @@ export function TeamSettingsPage() {
     }
   }
 
-  const handleAddCoach = async (event: FormEvent) => {
+  const handleInvite = async (event: FormEvent) => {
     event.preventDefault()
     if (!teamId || !user) return
-    setAddError(null)
-    setAdding(true)
+    setInviteError(null)
+    setInviteSent(null)
+    setInviting(true)
     try {
-      const usersQuery = query(usersCollection(), where('email', '==', addEmail.trim()))
+      const trimmedEmail = inviteEmail.trim()
+      const usersQuery = query(usersCollection(), where('email', '==', trimmedEmail))
       const snapshot = await getDocs(usersQuery)
-      if (snapshot.empty) {
-        setAddError(
-          "This person hasn't created an account yet. Ask them to sign up, then add them again.",
-        )
-        return
+      if (!snapshot.empty) {
+        const userDocSnap = snapshot.docs[0]
+        await setDoc(memberDoc(teamId, userDocSnap.id), {
+          uid: userDocSnap.id,
+          email: userDocSnap.data().email,
+          displayName: userDocSnap.data().displayName,
+          role: inviteRole,
+          addedAt: serverTimestamp(),
+          addedBy: user.uid,
+        })
+        setInviteSent(`${trimmedEmail} added as ${inviteRole}.`)
+      } else {
+        await setDoc(inviteDoc(teamId, trimmedEmail), {
+          email: trimmedEmail.trim().toLowerCase(),
+          role: inviteRole,
+          invitedBy: user.uid,
+          invitedAt: serverTimestamp(),
+        })
+        setInviteSent(`Invited ${trimmedEmail} — they'll be added as ${inviteRole} once they sign up.`)
       }
-      const userDocSnap = snapshot.docs[0]
-      await setDoc(memberDoc(teamId, userDocSnap.id), {
-        uid: userDocSnap.id,
-        email: userDocSnap.data().email,
-        displayName: userDocSnap.data().displayName,
-        role: 'coach',
-        addedAt: serverTimestamp(),
-        addedBy: user.uid,
-      })
-      setAddEmail('')
+      setInviteEmail('')
     } catch (err) {
-      setAddError(err instanceof Error ? err.message : 'Failed to add coach')
+      setInviteError(err instanceof Error ? err.message : 'Failed to send invite')
     } finally {
-      setAdding(false)
+      setInviting(false)
     }
+  }
+
+  const handleCancelInvite = async (id: string) => {
+    if (!teamId) return
+    await deleteDoc(inviteDoc(teamId, id))
+  }
+
+  const handleChangeRole = async (uid: string, newRole: InviteRole) => {
+    if (!teamId) return
+    await updateDoc(memberDoc(teamId, uid), { role: newRole })
   }
 
   const handleRemoveMember = async (uid: string) => {
@@ -160,7 +206,25 @@ export function TeamSettingsPage() {
                 <p className="text-sm text-slate-500">{member.email}</p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-xs uppercase text-slate-400">{member.role}</span>
+                {isOwner && member.role !== 'owner' ? (
+                  <div className="flex gap-1">
+                    {INVITE_ROLES.map((r) => (
+                      <button
+                        key={r}
+                        onClick={() => handleChangeRole(member.uid, r)}
+                        className={`rounded-md px-2 py-1 text-xs font-medium uppercase ${
+                          member.role === r
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-xs uppercase text-slate-400">{member.role}</span>
+                )}
                 {isOwner && member.role !== 'owner' && (
                   <button
                     onClick={() => handleRemoveMember(member.uid)}
@@ -174,26 +238,66 @@ export function TeamSettingsPage() {
           ))}
         </ul>
 
+        {isOwner && invites.length > 0 && (
+          <div className="mb-4">
+            <h3 className="mb-2 text-sm font-medium text-slate-700">Pending invites</h3>
+            <ul className="space-y-1">
+              {invites.map((invite) => (
+                <li
+                  key={invite.id}
+                  className="flex items-center justify-between rounded-md bg-slate-100 px-2 py-1.5 text-sm text-slate-600"
+                >
+                  <span>
+                    {invite.email} <span className="text-xs uppercase text-slate-400">({invite.role})</span>
+                  </span>
+                  <button
+                    onClick={() => handleCancelInvite(invite.id)}
+                    className="text-xs text-red-600 hover:underline"
+                  >
+                    Cancel
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {isOwner && (
-          <form onSubmit={handleAddCoach} className="flex gap-2">
-            <input
-              type="email"
-              required
-              placeholder="coach@example.com"
-              value={addEmail}
-              onChange={(e) => setAddEmail(e.target.value)}
-              className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-            />
-            <button
-              type="submit"
-              disabled={adding}
-              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-            >
-              {adding ? 'Adding…' : 'Add coach'}
-            </button>
+          <form onSubmit={handleInvite} className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="email"
+                required
+                placeholder="coach@example.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={inviting}
+                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {inviting ? 'Inviting…' : 'Invite'}
+              </button>
+            </div>
+            <div className="flex gap-2">
+              {INVITE_ROLES.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setInviteRole(r)}
+                  className={toggleClass(inviteRole === r)}
+                >
+                  {r.charAt(0).toUpperCase() + r.slice(1)}
+                  {r === 'coach' ? ' (can edit)' : ' (view only)'}
+                </button>
+              ))}
+            </div>
           </form>
         )}
-        {addError && <p className="mt-2 text-sm text-red-600">{addError}</p>}
+        {inviteError && <p className="mt-2 text-sm text-red-600">{inviteError}</p>}
+        {inviteSent && <p className="mt-2 text-sm text-emerald-700">{inviteSent}</p>}
       </div>
     </div>
   )

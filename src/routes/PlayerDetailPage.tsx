@@ -1,8 +1,10 @@
 import { addDoc, deleteDoc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTeamContext } from '../contexts/TeamContext'
 import { playerDoc, playersCollection } from '../firebase/firestore'
 import type { Player, PositionGroup } from '../types'
+import { canEdit } from '../utils/roles'
 
 const POSITION_GROUPS: PositionGroup[] = ['GK', 'DEF', 'MID', 'FW']
 
@@ -29,6 +31,8 @@ function toggleClass(active: boolean) {
 export function PlayerDetailPage() {
   const { teamId, playerId } = useParams<{ teamId: string; playerId: string }>()
   const navigate = useNavigate()
+  const { role } = useTeamContext()
+  const editable = canEdit(role)
   const isNew = playerId === 'new'
   const [form, setForm] = useState(emptyForm)
   const [loading, setLoading] = useState(!isNew)
@@ -116,6 +120,7 @@ export function PlayerDetailPage() {
         {isNew ? 'Add player' : 'Edit player'}
       </h1>
       <form onSubmit={handleSubmit} className="space-y-4">
+        <fieldset disabled={!editable} className="m-0 min-w-0 space-y-4 border-0 p-0">
         <div className="flex gap-3">
           <div className="flex-1">
             <label className="mb-1 block text-sm font-medium text-slate-700">First name</label>
@@ -180,25 +185,28 @@ export function PlayerDetailPage() {
             Active on squad
           </label>
         )}
+        </fieldset>
 
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save player'}
-          </button>
-          {!isNew && (
+        {editable && (
+          <div className="flex items-center gap-3">
             <button
-              type="button"
-              onClick={handleDelete}
-              className="text-sm text-red-600 hover:underline"
+              type="submit"
+              disabled={saving}
+              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
             >
-              Remove from squad
+              {saving ? 'Saving…' : 'Save player'}
             </button>
-          )}
-        </div>
+            {!isNew && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="text-sm text-red-600 hover:underline"
+              >
+                Remove from squad
+              </button>
+            )}
+          </div>
+        )}
       </form>
     </div>
   )

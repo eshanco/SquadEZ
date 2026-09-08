@@ -5,12 +5,14 @@ import { PitchSlot } from '../components/lineup/PitchSlot'
 import { PlayerChip } from '../components/lineup/PlayerChip'
 import { PlayerPickerModal } from '../components/lineup/PlayerPickerModal'
 import { useAuthContext } from '../contexts/AuthContext'
+import { useTeamContext } from '../contexts/TeamContext'
 import { formationsCollection, lineupDoc } from '../firebase/firestore'
 import { useFormations } from '../hooks/useFormations'
 import { useLineup } from '../hooks/useLineup'
 import { usePlayers } from '../hooks/usePlayers'
 import type { LineupPeriod, Player, TeamEvent } from '../types'
 import { DEFAULT_FORMATIONS, formationRows, parseFormationShape } from '../utils/formations'
+import { canEdit } from '../utils/roles'
 
 // Period labels are derived, not typed in: each period's label is the
 // cumulative minute range implied by every period's duration before it, e.g.
@@ -157,14 +159,16 @@ function SubstitutionsSummary({
 export function LineupPage({ event }: { event: TeamEvent }) {
   const { teamId, eventId } = useParams<{ teamId: string; eventId: string }>()
   const { user } = useAuthContext()
+  const { role } = useTeamContext()
   const { players } = usePlayers(teamId)
   const { lineup, loading } = useLineup(teamId, eventId)
   const { formations } = useFormations(teamId)
 
+  const editable = canEdit(role)
   const isPast = event.endAt < Date.now()
   const [editingEventId, setEditingEventId] = useState<string | null>(null)
   const editing = !isPast || editingEventId === event.id
-  const readOnly = !editing
+  const readOnly = !editable || !editing
 
   const [formationId, setFormationId] = useState(DEFAULT_FORMATIONS[1].id) // 4-3-3
   const [periods, setPeriods] = useState<LineupPeriod[]>([])
@@ -346,12 +350,14 @@ export function LineupPage({ event }: { event: TeamEvent }) {
       <div className="max-w-2xl space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-slate-900">Lineup</h1>
-          <button
-            onClick={() => setEditingEventId(event.id)}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
-          >
-            {periods.length === 0 ? 'Add lineup' : 'Edit lineup'}
-          </button>
+          {editable && (
+            <button
+              onClick={() => setEditingEventId(event.id)}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+            >
+              {periods.length === 0 ? 'Add lineup' : 'Edit lineup'}
+            </button>
+          )}
         </div>
 
         {periods.length === 0 ? (

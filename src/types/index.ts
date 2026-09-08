@@ -1,4 +1,7 @@
-export type MemberRole = 'owner' | 'coach'
+export type MemberRole = 'owner' | 'coach' | 'viewer'
+// Roles that can be granted via an invite - 'owner' is only ever set by the
+// team-creation bootstrap, never handed out through the invite flow.
+export type InviteRole = 'coach' | 'viewer'
 
 export interface AppUser {
   uid: string
@@ -22,6 +25,16 @@ export interface TeamMember {
   role: MemberRole
   addedAt: number
   addedBy: string
+}
+
+// A pending invite for someone who doesn't have a SquadEZ account yet -
+// keyed by their (lowercased) email, since there's no uid to key it by
+// until they sign up. Consumed into a TeamMember doc at signup time.
+export interface TeamInvite {
+  email: string
+  role: InviteRole
+  invitedBy: string
+  invitedAt: number
 }
 
 export type PositionGroup = 'GK' | 'DEF' | 'MID' | 'FW'

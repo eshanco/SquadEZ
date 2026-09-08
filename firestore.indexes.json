@@ -4,6 +4,11 @@
       "collectionGroup": "members",
       "queryScope": "COLLECTION_GROUP",
       "fields": [{ "fieldPath": "uid", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "invites",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [{ "fieldPath": "email", "order": "ASCENDING" }]
     }
   ],
   "fieldOverrides": []

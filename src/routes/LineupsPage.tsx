@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useTeamContext } from '../contexts/TeamContext'
 import { useAttendanceStats } from '../hooks/useAttendanceStats'
 import { useEvents } from '../hooks/useEvents'
 import type { TeamEvent } from '../types'
 import { formatEventDateTime } from '../utils/dates'
+import { canEdit } from '../utils/roles'
 import { LineupPage } from './LineupPage'
 
 function EventRow({
@@ -12,12 +14,14 @@ function EventRow({
   selected,
   onSelect,
   highlighted,
+  editable,
 }: {
   event: TeamEvent
   teamId: string
   selected: boolean
   onSelect: () => void
   highlighted: boolean
+  editable: boolean
 }) {
   return (
     <div
@@ -34,14 +38,16 @@ function EventRow({
         )}
       </button>
       <div className="flex shrink-0 items-center gap-3 pr-4">
-        <Link
-          to={`/teams/${teamId}/events/${event.id}`}
-          className="text-xs text-slate-400 hover:text-slate-600 hover:underline"
-        >
-          Edit
-        </Link>
+        {editable && (
+          <Link
+            to={`/teams/${teamId}/events/${event.id}`}
+            className="text-xs text-slate-400 hover:text-slate-600 hover:underline"
+          >
+            Edit
+          </Link>
+        )}
         <span className="text-xs font-medium text-emerald-700">
-          {selected ? 'Hide' : 'Build lineup'}
+          {selected ? 'Hide' : editable ? 'Build lineup' : 'View lineup'}
         </span>
       </div>
     </div>
@@ -56,6 +62,8 @@ export function LineupsPage() {
     ?.highlightEventId
   const { events, loading: eventsLoading } = useEvents(teamId)
   const { stats, players, loading: statsLoading } = useAttendanceStats(teamId)
+  const { role } = useTeamContext()
+  const editable = canEdit(role)
 
   const now = Date.now()
   const games = events.filter((e) => e.type === 'game')
@@ -91,13 +99,15 @@ export function LineupsPage() {
     <div className="max-w-2xl space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Game Management</h1>
-        <Link
-          to={`/teams/${teamId}/events/new`}
-          state={{ initialType: 'game' }}
-          className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-        >
-          Add Game
-        </Link>
+        {editable && (
+          <Link
+            to={`/teams/${teamId}/events/new`}
+            state={{ initialType: 'game' }}
+            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            Add Game
+          </Link>
+        )}
       </div>
 
       {eventsLoading ? (
@@ -118,6 +128,7 @@ export function LineupsPage() {
                     selected={eventId === event.id}
                     onSelect={() => selectEvent(event.id)}
                     highlighted={event.id === highlightEventId}
+                    editable={editable}
                   />
                 </div>
               ))}
@@ -145,6 +156,7 @@ export function LineupsPage() {
                       selected={eventId === event.id}
                       onSelect={() => selectEvent(event.id)}
                       highlighted={event.id === highlightEventId}
+                      editable={editable}
                     />
                   </li>
                 ))}

@@ -8,9 +8,11 @@ import type { RsvpStatus } from '../../types'
 export function AttendanceMarker({
   teamId,
   eventId,
+  editable = true,
 }: {
   teamId: string
   eventId: string
+  editable?: boolean
 }) {
   const { user } = useAuthContext()
   const { players, loading: playersLoading } = usePlayers(teamId)
@@ -54,7 +56,8 @@ export function AttendanceMarker({
               <div className="flex gap-1">
                 <button
                   onClick={() => handleSetAttended(player.id, true)}
-                  className={`rounded-md px-3 py-1 text-sm ${
+                  disabled={!editable}
+                  className={`rounded-md px-3 py-1 text-sm disabled:cursor-default disabled:opacity-60 ${
                     current === 'yes'
                       ? 'bg-emerald-600 text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -64,7 +67,8 @@ export function AttendanceMarker({
                 </button>
                 <button
                   onClick={() => handleSetAttended(player.id, false)}
-                  className={`rounded-md px-3 py-1 text-sm ${
+                  disabled={!editable}
+                  className={`rounded-md px-3 py-1 text-sm disabled:cursor-default disabled:opacity-60 ${
                     current === 'no'
                       ? 'bg-red-600 text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'

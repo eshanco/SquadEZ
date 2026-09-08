@@ -1,6 +1,8 @@
 import { Link, useParams } from 'react-router-dom'
+import { useTeamContext } from '../contexts/TeamContext'
 import { usePlayers } from '../hooks/usePlayers'
 import type { Player, PositionGroup } from '../types'
+import { canEdit } from '../utils/roles'
 
 const POSITION_ORDER: PositionGroup[] = ['GK', 'DEF', 'MID', 'FW']
 
@@ -11,6 +13,8 @@ function primaryPosition(player: Player): PositionGroup | null {
 export function SquadPage() {
   const { teamId } = useParams<{ teamId: string }>()
   const { players, loading } = usePlayers(teamId)
+  const { role } = useTeamContext()
+  const editable = canEdit(role)
 
   const activePlayers = players.filter((p) => p.active)
   const inactivePlayers = players.filter((p) => !p.active)
@@ -31,12 +35,14 @@ export function SquadPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Squad</h1>
-        <Link
-          to={`/teams/${teamId}/squad/new`}
-          className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-        >
-          Add player
-        </Link>
+        {editable && (
+          <Link
+            to={`/teams/${teamId}/squad/new`}
+            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            Add player
+          </Link>
+        )}
       </div>
 
       {loading ? (

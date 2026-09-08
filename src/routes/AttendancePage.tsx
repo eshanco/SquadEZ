@@ -2,11 +2,13 @@ import { updateDoc } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { AttendanceMarker } from '../components/attendance/AttendanceMarker'
+import { useTeamContext } from '../contexts/TeamContext'
 import { eventDoc } from '../firebase/firestore'
 import { useAttendanceStats } from '../hooks/useAttendanceStats'
 import { useEvents } from '../hooks/useEvents'
 import type { TeamEvent } from '../types'
 import { formatEventDateTime } from '../utils/dates'
+import { canEdit } from '../utils/roles'
 
 function EventRow({
   event,
@@ -15,6 +17,7 @@ function EventRow({
   onSelect,
   onToggleCancelled,
   highlighted,
+  editable,
 }: {
   event: TeamEvent
   teamId: string
@@ -22,6 +25,7 @@ function EventRow({
   onSelect: () => void
   onToggleCancelled: () => void
   highlighted: boolean
+  editable: boolean
 }) {
   return (
     <div
@@ -44,22 +48,26 @@ function EventRow({
         )}
       </button>
       <div className="flex shrink-0 items-center gap-3 pr-4">
-        <Link
-          to={`/teams/${teamId}/events/${event.id}`}
-          className="text-xs text-slate-400 hover:text-slate-600 hover:underline"
-        >
-          Edit
-        </Link>
-        <button
-          onClick={onToggleCancelled}
-          className="text-xs text-slate-400 hover:text-red-600 hover:underline"
-        >
-          {event.cancelled ? 'Reinstate' : 'Cancel'}
-        </button>
+        {editable && (
+          <>
+            <Link
+              to={`/teams/${teamId}/events/${event.id}`}
+              className="text-xs text-slate-400 hover:text-slate-600 hover:underline"
+            >
+              Edit
+            </Link>
+            <button
+              onClick={onToggleCancelled}
+              className="text-xs text-slate-400 hover:text-red-600 hover:underline"
+            >
+              {event.cancelled ? 'Reinstate' : 'Cancel'}
+            </button>
+          </>
+        )}
         <span
           className={`text-xs font-medium ${event.cancelled ? 'text-slate-400' : 'text-emerald-700'}`}
         >
-          {selected ? 'Hide' : event.cancelled ? 'Details' : 'Mark attendance'}
+          {selected ? 'Hide' : event.cancelled ? 'Details' : editable ? 'Mark attendance' : 'View attendance'}
         </span>
       </div>
     </div>
@@ -74,6 +82,8 @@ export function AttendancePage() {
     ?.highlightEventId
   const { events, loading: eventsLoading } = useEvents(teamId)
   const { stats, players, loading: statsLoading } = useAttendanceStats(teamId)
+  const { role } = useTeamContext()
+  const editable = canEdit(role)
 
   const now = Date.now()
   const practices = events.filter((e) => e.type === 'practice')
@@ -114,13 +124,15 @@ export function AttendancePage() {
     <div className="max-w-2xl space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Training</h1>
-        <Link
-          to={`/teams/${teamId}/events/new`}
-          state={{ initialType: 'practice' }}
-          className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-        >
-          Add Session
-        </Link>
+        {editable && (
+          <Link
+            to={`/teams/${teamId}/events/new`}
+            state={{ initialType: 'practice' }}
+            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            Add Session
+          </Link>
+        )}
       </div>
 
       {eventsLoading ? (
@@ -137,6 +149,7 @@ export function AttendancePage() {
               onSelect={() => selectEvent(justHappened.id)}
               onToggleCancelled={() => toggleCancelled(justHappened)}
               highlighted={justHappened.id === highlightEventId}
+              editable={editable}
             />
           </div>
           {eventId === justHappened.id && teamId && (
@@ -146,7 +159,7 @@ export function AttendancePage() {
                   This session was cancelled — no attendance recorded.
                 </p>
               ) : (
-                <AttendanceMarker teamId={teamId} eventId={eventId} />
+                <AttendanceMarker teamId={teamId} eventId={eventId} editable={editable} />
               )}
             </div>
           )}
@@ -173,6 +186,7 @@ export function AttendancePage() {
                       onSelect={() => selectEvent(event.id)}
                       onToggleCancelled={() => toggleCancelled(event)}
                       highlighted={event.id === highlightEventId}
+                      editable={editable}
                     />
                     {eventId === event.id && teamId && (
                       <div className="px-4 pb-3">
@@ -181,7 +195,7 @@ export function AttendancePage() {
                             This session was cancelled — no attendance recorded.
                           </p>
                         ) : (
-                          <AttendanceMarker teamId={teamId} eventId={eventId} />
+                          <AttendanceMarker teamId={teamId} eventId={eventId} editable={editable} />
                         )}
                       </div>
                     )}
