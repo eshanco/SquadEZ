@@ -349,9 +349,14 @@ export function LineupPage({ event }: { event: TeamEvent }) {
   // every jersey renders at the same size regardless of which row it's in -
   // a sparse GK/FWD row just leaves its unused columns empty and centered,
   // rather than each row independently stretching its own slots to fill
-  // the width (which squashed rows with more slots, like DEF/MID).
+  // the width (which squashed rows with more slots, like DEF/MID). The grid
+  // itself runs at double that resolution (each slot spans 2 units) so a
+  // row's centering offset is always a whole number of units - at single
+  // resolution a 1-slot row centered in 4 columns needs a half-column
+  // offset, which rounds off and renders visibly off-centre.
   const pitchRows = selectedFormation ? formationRows(selectedFormation) : []
   const pitchColumns = Math.max(1, ...pitchRows.map((row) => row.length))
+  const pitchGridUnits = pitchColumns * 2
 
   if (readOnly) {
     return (
@@ -399,12 +404,12 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                 <div className="space-y-4">
                   <div
                     className="relative mx-auto grid w-full max-w-2xl gap-x-2 gap-y-3 overflow-hidden rounded-lg bg-emerald-600 p-4"
-                    style={{ gridTemplateColumns: `repeat(${pitchColumns}, minmax(0, 1fr))` }}
+                    style={{ gridTemplateColumns: `repeat(${pitchGridUnits}, minmax(0, 1fr))` }}
                   >
                     <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/30" />
                     <div className="pointer-events-none absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30" />
                     {pitchRows.map((row, rowIndex) => {
-                      const startColumn = Math.floor((pitchColumns - row.length) / 2) + 1
+                      const startUnit = pitchColumns - row.length + 1
                       return row.map((slot, colIndex) => {
                         const assignment = selectedPeriod.assignments.find(
                           (a) => a.slotId === slot.id,
@@ -416,7 +421,10 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                           <div
                             key={slot.id}
                             className="relative z-10"
-                            style={{ gridColumn: startColumn + colIndex, gridRow: rowIndex + 1 }}
+                            style={{
+                              gridColumn: `${startUnit + colIndex * 2} / span 2`,
+                              gridRow: rowIndex + 1,
+                            }}
                           >
                             <PitchSlot
                               slot={slot}
@@ -625,12 +633,12 @@ export function LineupPage({ event }: { event: TeamEvent }) {
           <div className="space-y-4">
             <div
               className="relative mx-auto grid w-full max-w-2xl gap-x-2 gap-y-3 overflow-hidden rounded-lg bg-emerald-600 p-4"
-              style={{ gridTemplateColumns: `repeat(${pitchColumns}, minmax(0, 1fr))` }}
+              style={{ gridTemplateColumns: `repeat(${pitchGridUnits}, minmax(0, 1fr))` }}
             >
               <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/30" />
               <div className="pointer-events-none absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30" />
               {pitchRows.map((row, rowIndex) => {
-                const startColumn = Math.floor((pitchColumns - row.length) / 2) + 1
+                const startUnit = pitchColumns - row.length + 1
                 return row.map((slot, colIndex) => {
                   const assignment = selectedPeriod.assignments.find(
                     (a) => a.slotId === slot.id,
@@ -640,7 +648,10 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                     <div
                       key={slot.id}
                       className="relative z-10"
-                      style={{ gridColumn: startColumn + colIndex, gridRow: rowIndex + 1 }}
+                      style={{
+                        gridColumn: `${startUnit + colIndex * 2} / span 2`,
+                        gridRow: rowIndex + 1,
+                      }}
                     >
                       <PitchSlot
                         slot={slot}
