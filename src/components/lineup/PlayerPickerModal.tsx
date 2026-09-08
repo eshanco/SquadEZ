@@ -18,13 +18,11 @@ function sortByJersey(players: Player[]): Player[] {
 export function PlayerPickerModal({
   slot,
   players,
-  assignedSlotLabelByPlayer,
   onSelect,
   onClose,
 }: {
   slot: FormationSlot
   players: Player[]
-  assignedSlotLabelByPlayer: Map<string, string>
   onSelect: (playerId: string) => void
   onClose: () => void
 }) {
@@ -82,24 +80,18 @@ export function PlayerPickerModal({
                   {section.label}
                 </h3>
                 <ul className="space-y-1">
-                  {section.players.map((player) => {
-                    const currentSlotLabel = assignedSlotLabelByPlayer.get(player.id)
-                    return (
-                      <li key={player.id}>
-                        <button
-                          onClick={() => onSelect(player.id)}
-                          className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-emerald-50"
-                        >
-                          <span className="font-medium text-slate-800">
-                            #{player.jerseyNumber} {player.firstName} {player.lastName}
-                          </span>
-                          {currentSlotLabel && (
-                            <span className="text-xs text-slate-400">at {currentSlotLabel}</span>
-                          )}
-                        </button>
-                      </li>
-                    )
-                  })}
+                  {section.players.map((player) => (
+                    <li key={player.id}>
+                      <button
+                        onClick={() => onSelect(player.id)}
+                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-emerald-50"
+                      >
+                        <span className="font-medium text-slate-800">
+                          #{player.jerseyNumber} {player.firstName} {player.lastName}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
                 </ul>
               </div>
             ))}

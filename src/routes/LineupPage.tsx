@@ -224,14 +224,11 @@ export function LineupPage({ event }: { event: TeamEvent }) {
 
   const assignedPlayerIds = new Set(selectedPeriod?.assignments.map((a) => a.playerId) ?? [])
   const benchPlayers = availablePlayers.filter((p) => !assignedPlayerIds.has(p.id))
-  const assignedSlotLabelByPlayer = new Map(
-    (selectedPeriod?.assignments ?? []).map((a) => [a.playerId, a.position]),
-  )
   const pickerSlot = selectedFormation?.slots.find((s) => s.id === pickerSlotId) ?? null
-  const pickerCurrentOccupantId = pickerSlot
-    ? (selectedPeriod?.assignments.find((a) => a.slotId === pickerSlot.id)?.playerId ?? null)
-    : null
-  const pickerCandidates = availablePlayers.filter((p) => p.id !== pickerCurrentOccupantId)
+  // A player already occupying a slot (including this one) can't be picked
+  // for another position until they're removed from that slot first - so
+  // the picker only ever offers players who aren't assigned anywhere yet.
+  const pickerCandidates = benchPlayers
 
   const markUnavailable = (playerId: string) => {
     setUnavailablePlayerIds((ids) => [...ids, playerId])
@@ -733,7 +730,6 @@ export function LineupPage({ event }: { event: TeamEvent }) {
             <PlayerPickerModal
               slot={pickerSlot}
               players={pickerCandidates}
-              assignedSlotLabelByPlayer={assignedSlotLabelByPlayer}
               onSelect={(playerId) => {
                 assignPlayerToSlot(playerId, pickerSlot.id)
                 setPickerSlotId(null)
