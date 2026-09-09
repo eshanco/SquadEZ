@@ -1,15 +1,20 @@
 import { slotPositionGroup } from '../../utils/formations'
 import type { FormationSlot, Player } from '../../types'
+import { JerseySvg } from './JerseySvg'
 
 export function PitchSlot({
   slot,
   player,
+  jerseyColor,
+  jerseyTrimColor,
   onClick,
   onRemove,
   displayName,
 }: {
   slot: FormationSlot
   player: Player | null
+  jerseyColor: string
+  jerseyTrimColor: string
   onClick?: () => void
   onRemove?: () => void
   displayName?: string
@@ -19,21 +24,28 @@ export function PitchSlot({
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
-      className={`relative flex aspect-[4/3] w-full min-w-0 flex-col items-center justify-center rounded-xl px-2 text-center transition-transform ${
-        player ? 'bg-white' : 'border-2 border-dashed border-white/50'
-      } ${onClick ? 'cursor-pointer hover:scale-105' : ''}`}
+      className={`relative flex w-full min-w-0 flex-col items-center gap-1 transition-transform ${
+        onClick ? 'cursor-pointer hover:scale-105' : ''
+      }`}
     >
+      <JerseySvg
+        color={jerseyColor}
+        trimColor={jerseyTrimColor}
+        muted={!player}
+        className="h-10 w-10 drop-shadow-sm"
+      />
+
       {player ? (
-        <>
-          <span className="w-full truncate text-sm font-bold leading-tight text-emerald-800">
+        <div className="w-full rounded-md bg-white/95 px-1.5 py-1 text-center shadow-sm">
+          <p className="w-full truncate text-[11px] font-bold leading-tight text-slate-900">
             {displayName ?? player.firstName}
-          </span>
-          <span className="text-[10px] font-semibold uppercase leading-tight text-emerald-700/70">
+          </p>
+          <p className="text-[9px] font-semibold uppercase leading-tight text-slate-500">
             {slotPositionGroup(slot)}
-          </span>
-        </>
+          </p>
+        </div>
       ) : (
-        <span className="text-xs font-semibold text-white/90">{slot.label}</span>
+        <span className="text-[10px] font-semibold text-white/80">{slot.label}</span>
       )}
 
       {player && onRemove && (

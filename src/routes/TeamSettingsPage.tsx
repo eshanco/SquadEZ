@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { JerseySvg } from '../components/lineup/JerseySvg'
 import { useAuthContext } from '../contexts/AuthContext'
 import { useTeamContext } from '../contexts/TeamContext'
 import {
@@ -21,6 +22,7 @@ import {
   usersCollection,
 } from '../firebase/firestore'
 import type { InviteRole, TeamInvite, TeamMember } from '../types'
+import { DEFAULT_JERSEY_COLOR, DEFAULT_JERSEY_TRIM_COLOR, teamJerseyColors } from '../utils/jersey'
 
 const INVITE_ROLES: InviteRole[] = ['coach', 'viewer']
 
@@ -39,6 +41,8 @@ export function TeamSettingsPage() {
   const [name, setName] = useState('')
   const [ageGroup, setAgeGroup] = useState('')
   const [season, setSeason] = useState('')
+  const [jerseyColor, setJerseyColor] = useState(DEFAULT_JERSEY_COLOR)
+  const [jerseyTrimColor, setJerseyTrimColor] = useState(DEFAULT_JERSEY_TRIM_COLOR)
   const [savingTeam, setSavingTeam] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<InviteRole>('coach')
@@ -53,6 +57,9 @@ export function TeamSettingsPage() {
       setName(team.name)
       setAgeGroup(team.ageGroup)
       setSeason(team.season)
+      const { color, trimColor } = teamJerseyColors(team)
+      setJerseyColor(color)
+      setJerseyTrimColor(trimColor)
     }
   }, [team])
 
@@ -83,7 +90,7 @@ export function TeamSettingsPage() {
     if (!teamId) return
     setSavingTeam(true)
     try {
-      await updateDoc(teamDoc(teamId), { name, ageGroup, season })
+      await updateDoc(teamDoc(teamId), { name, ageGroup, season, jerseyColor, jerseyTrimColor })
     } finally {
       setSavingTeam(false)
     }
@@ -181,6 +188,39 @@ export function TeamSettingsPage() {
               />
             </div>
           </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Kit colours</label>
+            <p className="mb-2 text-xs text-slate-500">
+              Every player's jersey on the pitch uses these colours.
+            </p>
+            <div className="flex items-center gap-4">
+              <JerseySvg color={jerseyColor} trimColor={jerseyTrimColor} className="h-14 w-14" />
+              <div className="flex gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Jersey</label>
+                  <input
+                    type="color"
+                    disabled={!isOwner}
+                    value={jerseyColor}
+                    onChange={(e) => setJerseyColor(e.target.value)}
+                    className="h-9 w-14 rounded-md border border-slate-300 disabled:opacity-50"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Trim</label>
+                  <input
+                    type="color"
+                    disabled={!isOwner}
+                    value={jerseyTrimColor}
+                    onChange={(e) => setJerseyTrimColor(e.target.value)}
+                    className="h-9 w-14 rounded-md border border-slate-300 disabled:opacity-50"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
           {isOwner && (
             <button
               type="submit"

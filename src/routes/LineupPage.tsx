@@ -1,6 +1,7 @@
 import { addDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { type FormEvent, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { PitchMarkings } from '../components/lineup/PitchMarkings'
 import { PitchSlot } from '../components/lineup/PitchSlot'
 import { PlayerChip } from '../components/lineup/PlayerChip'
 import { PlayerPickerModal } from '../components/lineup/PlayerPickerModal'
@@ -10,9 +11,34 @@ import { formationsCollection, lineupDoc } from '../firebase/firestore'
 import { useFormations } from '../hooks/useFormations'
 import { useLineup } from '../hooks/useLineup'
 import { usePlayers } from '../hooks/usePlayers'
-import type { LineupPeriod, Player, TeamEvent } from '../types'
+import type { LineupPeriod, Player, PositionGroup, TeamEvent } from '../types'
 import { DEFAULT_FORMATIONS, formationRows, parseFormationShape } from '../utils/formations'
+import { teamJerseyColors } from '../utils/jersey'
 import { canEdit } from '../utils/roles'
+
+const BENCH_POSITION_ORDER: PositionGroup[] = ['GK', 'DEF', 'MID', 'FW']
+
+// Bench players aren't tied to fixed sub slots the way pitch slots are, but
+// grouping them GK -> DEF -> MID -> FW makes the bench read like a tidy
+// FPL-style strip instead of a jumbled bag of names.
+function sortForBench(players: Player[]): Player[] {
+  return [...players].sort((a, b) => {
+    const rank = (p: Player) => {
+      const first = p.positions[0]
+      const i = first ? BENCH_POSITION_ORDER.indexOf(first) : -1
+      return i === -1 ? BENCH_POSITION_ORDER.length : i
+    }
+    return rank(a) - rank(b)
+  })
+}
+
+// The pitch container's actual background paint - a subtle mown-stripe
+// look instead of a flat fill, cheap CSS rather than an image asset.
+const PITCH_BACKGROUND = {
+  backgroundColor: '#059669',
+  backgroundImage:
+    'repeating-linear-gradient(to bottom, rgba(255,255,255,0.06) 0, rgba(255,255,255,0.06) 10%, rgba(0,0,0,0.04) 10%, rgba(0,0,0,0.04) 20%)',
+}
 
 // Period labels are derived, not typed in: each period's label is the
 // cumulative minute range implied by every period's duration before it, e.g.
@@ -159,7 +185,7 @@ function SubstitutionsSummary({
 export function LineupPage({ event }: { event: TeamEvent }) {
   const { teamId, eventId } = useParams<{ teamId: string; eventId: string }>()
   const { user } = useAuthContext()
-  const { role } = useTeamContext()
+  const { team, role } = useTeamContext()
   const { players } = usePlayers(teamId)
   const { lineup, loading } = useLineup(teamId, eventId)
   const { formations } = useFormations(teamId)
@@ -222,8 +248,10 @@ export function LineupPage({ event }: { event: TeamEvent }) {
   const selectedFormation = formations.find((f) => f.id === formationId) ?? formations[0]
   const selectedPeriod: LineupPeriod | undefined = periods[selectedPeriodIndex]
 
+  const { color: jerseyColor, trimColor: jerseyTrimColor } = teamJerseyColors(team)
+
   const assignedPlayerIds = new Set(selectedPeriod?.assignments.map((a) => a.playerId) ?? [])
-  const benchPlayers = availablePlayers.filter((p) => !assignedPlayerIds.has(p.id))
+  const benchPlayers = sortForBench(availablePlayers.filter((p) => !assignedPlayerIds.has(p.id)))
   const pickerSlot = selectedFormation?.slots.find((s) => s.id === pickerSlotId) ?? null
   // A player already occupying a slot (including this one) can't be picked
   // for another position until they're removed from that slot first - so
@@ -400,11 +428,10 @@ export function LineupPage({ event }: { event: TeamEvent }) {
 
                 <div className="space-y-4">
                   <div
-                    className="relative mx-auto grid w-full max-w-2xl gap-x-2 gap-y-3 overflow-hidden rounded-lg bg-emerald-600 p-4"
-                    style={{ gridTemplateColumns: `repeat(${pitchGridUnits}, minmax(0, 1fr))` }}
+                    className="relative mx-auto grid w-full max-w-2xl gap-x-2 gap-y-3 overflow-hidden rounded-lg px-4 pt-4 pb-8"
+                    style={{ ...PITCH_BACKGROUND, gridTemplateColumns: `repeat(${pitchGridUnits}, minmax(0, 1fr))` }}
                   >
-                    <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/30" />
-                    <div className="pointer-events-none absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30" />
+                    <PitchMarkings />
                     {pitchRows.map((row, rowIndex) => {
                       const startUnit = pitchColumns - row.length + 1
                       return row.map((slot, colIndex) => {
@@ -426,6 +453,8 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                             <PitchSlot
                               slot={slot}
                               player={player}
+                              jerseyColor={jerseyColor}
+                              jerseyTrimColor={jerseyTrimColor}
                               displayName={player ? displayNames.get(player.id) : undefined}
                             />
                           </div>
@@ -441,14 +470,15 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                     {benchPlayers.length === 0 ? (
                       <p className="text-xs text-slate-400">No one on the bench.</p>
                     ) : (
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-3 rounded-lg border border-emerald-100 bg-emerald-50 p-3">
                         {benchPlayers.map((player) => (
-                          <span
+                          <PlayerChip
                             key={player.id}
-                            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-800 shadow-sm"
-                          >
-                            #{player.jerseyNumber} {player.firstName}
-                          </span>
+                            player={player}
+                            jerseyColor={jerseyColor}
+                            jerseyTrimColor={jerseyTrimColor}
+                            displayName={displayNames.get(player.id)}
+                          />
                         ))}
                       </div>
                     )}
@@ -629,11 +659,10 @@ export function LineupPage({ event }: { event: TeamEvent }) {
 
           <div className="space-y-4">
             <div
-              className="relative mx-auto grid w-full max-w-2xl gap-x-2 gap-y-3 overflow-hidden rounded-lg bg-emerald-600 p-4"
-              style={{ gridTemplateColumns: `repeat(${pitchGridUnits}, minmax(0, 1fr))` }}
+              className="relative mx-auto grid w-full max-w-2xl gap-x-2 gap-y-3 overflow-hidden rounded-lg px-4 pt-4 pb-8"
+              style={{ ...PITCH_BACKGROUND, gridTemplateColumns: `repeat(${pitchGridUnits}, minmax(0, 1fr))` }}
             >
-              <div className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-white/30" />
-              <div className="pointer-events-none absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30" />
+              <PitchMarkings />
               {pitchRows.map((row, rowIndex) => {
                 const startUnit = pitchColumns - row.length + 1
                 return row.map((slot, colIndex) => {
@@ -653,6 +682,8 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                       <PitchSlot
                         slot={slot}
                         player={player}
+                        jerseyColor={jerseyColor}
+                        jerseyTrimColor={jerseyTrimColor}
                         onClick={() => setPickerSlotId(slot.id)}
                         onRemove={player ? () => removeFromPitch(slot.id) : undefined}
                         displayName={player ? displayNames.get(player.id) : undefined}
@@ -667,13 +698,18 @@ export function LineupPage({ event }: { event: TeamEvent }) {
               <h2 className="mb-2 text-sm font-medium text-slate-700">
                 Bench ({benchPlayers.length})
               </h2>
-              <div className="flex min-h-16 flex-wrap gap-2 rounded-md border-2 border-dashed border-slate-200 p-2">
+              <div className="flex min-h-16 flex-wrap gap-3 rounded-lg border border-emerald-100 bg-emerald-50 p-3">
                 {benchPlayers.length === 0 ? (
                   <p className="text-xs text-slate-400">Everyone's on the pitch.</p>
                 ) : (
                   benchPlayers.map((player) => (
                     <div key={player.id} className="relative">
-                      <PlayerChip player={player} />
+                      <PlayerChip
+                        player={player}
+                        jerseyColor={jerseyColor}
+                        jerseyTrimColor={jerseyTrimColor}
+                        displayName={displayNames.get(player.id)}
+                      />
                       <button
                         onClick={() => markUnavailable(player.id)}
                         aria-label={`Remove ${player.firstName} from available squad`}

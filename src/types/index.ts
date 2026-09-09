@@ -14,6 +14,8 @@ export interface Team {
   name: string
   ageGroup: string
   season: string
+  jerseyColor?: string
+  jerseyTrimColor?: string
   createdBy: string
   createdAt: number
 }
