@@ -32,7 +32,7 @@ export function PitchSlot({
         color={jerseyColor}
         trimColor={jerseyTrimColor}
         muted={!player}
-        className="h-10 w-10 drop-shadow-sm"
+        className="h-[60px] w-[60px] drop-shadow-sm"
       />
 
       {player ? (
