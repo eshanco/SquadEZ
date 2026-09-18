@@ -196,7 +196,6 @@ export function LineupPage({ event }: { event: TeamEvent }) {
   const editing = !isPast || editingEventId === event.id
   const readOnly = !editable || !editing
 
-  const [formationId, setFormationId] = useState(DEFAULT_FORMATIONS[1].id) // 4-3-3
   const [periods, setPeriods] = useState<LineupPeriod[]>([])
   const [unavailablePlayerIds, setUnavailablePlayerIds] = useState<string[]>([])
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0)
@@ -210,8 +209,19 @@ export function LineupPage({ event }: { event: TeamEvent }) {
 
   useEffect(() => {
     if (lineup) {
-      setFormationId(lineup.formationId)
-      setPeriods(withComputedLabels(lineup.periods))
+      // Formation used to live once at the lineup level; older saved docs
+      // still have it there instead of on each period. Fall back to that
+      // legacy value (then the app default) so old lineups still load with
+      // a formation instead of an empty pitch.
+      const legacyFormationId = (lineup as unknown as { formationId?: string }).formationId
+      setPeriods(
+        withComputedLabels(
+          lineup.periods.map((period) => ({
+            ...period,
+            formationId: period.formationId ?? legacyFormationId ?? DEFAULT_FORMATIONS[1].id,
+          })),
+        ),
+      )
       setUnavailablePlayerIds(lineup.unavailablePlayerIds ?? [])
     }
   }, [lineup])
@@ -234,6 +244,7 @@ export function LineupPage({ event }: { event: TeamEvent }) {
             label: '',
             durationMinutes: 20,
             assignments: [],
+            formationId: DEFAULT_FORMATIONS[1].id, // 4-3-3
           },
         ]),
       )
@@ -245,8 +256,9 @@ export function LineupPage({ event }: { event: TeamEvent }) {
   const displayNames = buildDisplayNames(activePlayers)
   const availablePlayers = activePlayers.filter((p) => !unavailablePlayerIds.includes(p.id))
   const unavailablePlayers = activePlayers.filter((p) => unavailablePlayerIds.includes(p.id))
-  const selectedFormation = formations.find((f) => f.id === formationId) ?? formations[0]
   const selectedPeriod: LineupPeriod | undefined = periods[selectedPeriodIndex]
+  const selectedFormation =
+    formations.find((f) => f.id === selectedPeriod?.formationId) ?? formations[0]
 
   const { color: jerseyColor, trimColor: jerseyTrimColor } = teamJerseyColors(team)
 
@@ -289,6 +301,7 @@ export function LineupPage({ event }: { event: TeamEvent }) {
       label: '',
       durationMinutes: previous?.durationMinutes ?? 20,
       assignments: previous ? previous.assignments.map((a) => ({ ...a })) : [],
+      formationId: previous?.formationId ?? DEFAULT_FORMATIONS[1].id,
     }
     setPeriods((p) => withComputedLabels([...p, newPeriod]))
     setSelectedPeriodIndex(periods.length)
@@ -310,7 +323,25 @@ export function LineupPage({ event }: { event: TeamEvent }) {
   const copyFromPreviousPeriod = () => {
     const previous = periods[selectedPeriodIndex - 1]
     if (!previous) return
-    updateSelectedPeriod({ assignments: previous.assignments.map((a) => ({ ...a })) })
+    // Assignments only make sense alongside the formation they were made
+    // under (slot ids are formation-relative), so copy both together.
+    updateSelectedPeriod({
+      assignments: previous.assignments.map((a) => ({ ...a })),
+      formationId: previous.formationId,
+    })
+  }
+
+  // Slot ids are just row/col coordinates recomputed per formation, so they
+  // can collide with a *different* position in another formation (e.g.
+  // "2-0" is MID in 4-3-3 but DM in 4-2-3-1). Carrying a period's old
+  // assignments into a new formation risks silently reassigning a player to
+  // the wrong slot, or leaving them counted as "assigned" while invisible on
+  // the pitch and missing from the available-players list. So a formation
+  // change clears assignments - but only for the period being changed, so
+  // switching formation mid-game (e.g. for the second half) doesn't disturb
+  // an already-finalized earlier period.
+  const changeFormation = (newFormationId: string) => {
+    updateSelectedPeriod({ formationId: newFormationId, assignments: [] })
   }
 
   // Assigns playerId to slotId, benching whoever previously held that slot
@@ -342,7 +373,7 @@ export function LineupPage({ event }: { event: TeamEvent }) {
         createdBy: user.uid,
         createdAt: serverTimestamp(),
       })
-      setFormationId(ref.id)
+      changeFormation(ref.id)
       setNewFormationOpen(false)
       setNewFormationName('')
       setNewFormationShape('')
@@ -356,7 +387,6 @@ export function LineupPage({ event }: { event: TeamEvent }) {
     setSaving(true)
     try {
       await setDoc(lineupDoc(teamId, eventId), {
-        formationId,
         periods,
         unavailablePlayerIds,
         updatedBy: user.uid,
@@ -402,10 +432,6 @@ export function LineupPage({ event }: { event: TeamEvent }) {
           <p className="text-slate-500">No lineup was recorded for this game.</p>
         ) : (
           <div className="space-y-4">
-            {selectedFormation && (
-              <p className="text-sm text-slate-500">Formation: {selectedFormation.name}</p>
-            )}
-
             <div className="flex flex-wrap items-center gap-2">
               {periods.map((period, index) => (
                 <button
@@ -424,7 +450,9 @@ export function LineupPage({ event }: { event: TeamEvent }) {
 
             {selectedPeriod && selectedFormation && (
               <div className="space-y-4">
-                <p className="text-sm text-slate-500">{selectedPeriod.label} min</p>
+                <p className="text-sm text-slate-500">
+                  {selectedPeriod.label} min · Formation: {selectedFormation.name}
+                </p>
 
                 <div className="space-y-4">
                   <div
@@ -532,68 +560,6 @@ export function LineupPage({ event }: { event: TeamEvent }) {
         )}
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Formation</label>
-          <select
-            value={formationId}
-            onChange={(e) => setFormationId(e.target.value)}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-          >
-            {formations.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-                {f.isCustom ? ' (custom)' : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          type="button"
-          onClick={() => setNewFormationOpen((o) => !o)}
-          className="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
-        >
-          + New formation
-        </button>
-      </div>
-
-      {newFormationOpen && (
-        <form
-          onSubmit={handleCreateFormation}
-          className="flex flex-wrap items-end gap-3 rounded-md border border-slate-200 bg-white p-3"
-        >
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Name</label>
-            <input
-              required
-              value={newFormationName}
-              onChange={(e) => setNewFormationName(e.target.value)}
-              placeholder="Box midfield"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Shape (defense-mid-attack)
-            </label>
-            <input
-              required
-              value={newFormationShape}
-              onChange={(e) => setNewFormationShape(e.target.value)}
-              placeholder="4-4-2"
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-          <button
-            type="submit"
-            className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-          >
-            Create
-          </button>
-          {newFormationError && <p className="text-sm text-red-600">{newFormationError}</p>}
-        </form>
-      )}
-
       <div className="flex flex-wrap items-center gap-2">
         {periods.map((period, index) => (
           <span
@@ -656,6 +622,68 @@ export function LineupPage({ event }: { event: TeamEvent }) {
               </button>
             )}
           </div>
+
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Formation</label>
+              <select
+                value={selectedPeriod.formationId}
+                onChange={(e) => changeFormation(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                {formations.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                    {f.isCustom ? ' (custom)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNewFormationOpen((o) => !o)}
+              className="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
+            >
+              + New formation
+            </button>
+          </div>
+
+          {newFormationOpen && (
+            <form
+              onSubmit={handleCreateFormation}
+              className="flex flex-wrap items-end gap-3 rounded-md border border-slate-200 bg-white p-3"
+            >
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Name</label>
+                <input
+                  required
+                  value={newFormationName}
+                  onChange={(e) => setNewFormationName(e.target.value)}
+                  placeholder="Box midfield"
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Shape (defense-mid-attack)
+                </label>
+                <input
+                  required
+                  value={newFormationShape}
+                  onChange={(e) => setNewFormationShape(e.target.value)}
+                  placeholder="4-4-2"
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+              >
+                Create
+              </button>
+              {newFormationError && <p className="text-sm text-red-600">{newFormationError}</p>}
+            </form>
+          )}
 
           <div className="space-y-4">
             <div

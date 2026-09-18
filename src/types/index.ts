@@ -131,10 +131,10 @@ export interface LineupPeriod {
   label: string
   durationMinutes: number
   assignments: LineupAssignment[]
+  formationId: string
 }
 
 export interface Lineup {
-  formationId: string
   periods: LineupPeriod[]
   unavailablePlayerIds: string[]
   updatedBy: string
