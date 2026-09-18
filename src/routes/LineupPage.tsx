@@ -199,6 +199,7 @@ export function LineupPage({ event }: { event: TeamEvent }) {
   const [periods, setPeriods] = useState<LineupPeriod[]>([])
   const [unavailablePlayerIds, setUnavailablePlayerIds] = useState<string[]>([])
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0)
+  const [durationInput, setDurationInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [pickerSlotId, setPickerSlotId] = useState<string | null>(null)
 
@@ -259,6 +260,10 @@ export function LineupPage({ event }: { event: TeamEvent }) {
   const selectedPeriod: LineupPeriod | undefined = periods[selectedPeriodIndex]
   const selectedFormation =
     formations.find((f) => f.id === selectedPeriod?.formationId) ?? formations[0]
+
+  useEffect(() => {
+    setDurationInput(selectedPeriod ? String(selectedPeriod.durationMinutes) : '')
+  }, [selectedPeriodIndex, selectedPeriod?.durationMinutes])
 
   const { color: jerseyColor, trimColor: jerseyTrimColor } = teamJerseyColors(team)
 
@@ -492,6 +497,17 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                   </div>
 
                   <div>
+                    {selectedPeriodIndex > 0 && (
+                      <div className="mb-4">
+                        <h2 className="mb-2 text-sm font-medium text-slate-700">Substitutions</h2>
+                        <SubstitutionsSummary
+                          previousPeriod={periods[selectedPeriodIndex - 1]}
+                          currentPeriod={selectedPeriod}
+                          playersById={playersById}
+                        />
+                      </div>
+                    )}
+
                     <h2 className="mb-2 text-sm font-medium text-slate-700">
                       Bench ({benchPlayers.length})
                     </h2>
@@ -508,17 +524,6 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                             displayName={displayNames.get(player.id)}
                           />
                         ))}
-                      </div>
-                    )}
-
-                    {selectedPeriodIndex > 0 && (
-                      <div className="mt-4">
-                        <h2 className="mb-2 text-sm font-medium text-slate-700">Substitutions</h2>
-                        <SubstitutionsSummary
-                          previousPeriod={periods[selectedPeriodIndex - 1]}
-                          currentPeriod={selectedPeriod}
-                          playersById={playersById}
-                        />
                       </div>
                     )}
 
@@ -606,10 +611,21 @@ export function LineupPage({ event }: { event: TeamEvent }) {
               <input
                 type="number"
                 min={1}
-                value={selectedPeriod.durationMinutes}
-                onChange={(e) =>
-                  updateSelectedPeriod({ durationMinutes: Number(e.target.value) || 0 })
-                }
+                value={durationInput}
+                onChange={(e) => {
+                  const raw = e.target.value
+                  setDurationInput(raw)
+                  const parsed = Number(raw)
+                  if (raw.trim() !== '' && Number.isFinite(parsed) && parsed > 0) {
+                    updateSelectedPeriod({ durationMinutes: parsed })
+                  }
+                }}
+                onBlur={() => {
+                  const parsed = Number(durationInput)
+                  if (durationInput.trim() === '' || !Number.isFinite(parsed) || parsed <= 0) {
+                    setDurationInput(String(selectedPeriod.durationMinutes))
+                  }
+                }}
                 className="w-24 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
               />
             </div>
@@ -723,6 +739,17 @@ export function LineupPage({ event }: { event: TeamEvent }) {
             </div>
 
             <div>
+              {selectedPeriodIndex > 0 && (
+                <div className="mb-4">
+                  <h2 className="mb-2 text-sm font-medium text-slate-700">Substitutions</h2>
+                  <SubstitutionsSummary
+                    previousPeriod={periods[selectedPeriodIndex - 1]}
+                    currentPeriod={selectedPeriod}
+                    playersById={playersById}
+                  />
+                </div>
+              )}
+
               <h2 className="mb-2 text-sm font-medium text-slate-700">
                 Bench ({benchPlayers.length})
               </h2>
@@ -750,17 +777,6 @@ export function LineupPage({ event }: { event: TeamEvent }) {
                   ))
                 )}
               </div>
-
-              {selectedPeriodIndex > 0 && (
-                <div className="mt-4">
-                  <h2 className="mb-2 text-sm font-medium text-slate-700">Substitutions</h2>
-                  <SubstitutionsSummary
-                    previousPeriod={periods[selectedPeriodIndex - 1]}
-                    currentPeriod={selectedPeriod}
-                    playersById={playersById}
-                  />
-                </div>
-              )}
 
               {unavailablePlayers.length > 0 && (
                 <div className="mt-4">
