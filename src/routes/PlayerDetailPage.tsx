@@ -1,6 +1,6 @@
 import { addDoc, deleteDoc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { type FormEvent, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTeamContext } from '../contexts/TeamContext'
 import { playerDoc, playersCollection } from '../firebase/firestore'
 import type { Player, PositionGroup } from '../types'
@@ -33,7 +33,8 @@ export function PlayerDetailPage() {
   const navigate = useNavigate()
   const { role } = useTeamContext()
   const editable = canEdit(role)
-  const isNew = playerId === 'new'
+  // Mounted on both `squad/new` (no :playerId) and `squad/:playerId/edit`.
+  const isNew = !playerId
   const [form, setForm] = useState(emptyForm)
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
@@ -96,10 +97,11 @@ export function PlayerDetailPage() {
       }
       if (isNew) {
         await addDoc(playersCollection(teamId), { ...payload, createdAt: serverTimestamp() })
+        navigate(`/teams/${teamId}/squad`)
       } else if (playerId) {
         await updateDoc(playerDoc(teamId, playerId), payload)
+        navigate(`/teams/${teamId}/squad/${playerId}`)
       }
-      navigate(`/teams/${teamId}/squad`)
     } finally {
       setSaving(false)
     }
@@ -196,6 +198,12 @@ export function PlayerDetailPage() {
             >
               {saving ? 'Saving…' : 'Save player'}
             </button>
+            <Link
+              to={isNew ? `/teams/${teamId}/squad` : `/teams/${teamId}/squad/${playerId}`}
+              className="text-sm text-slate-500 hover:underline"
+            >
+              Cancel
+            </Link>
             {!isNew && (
               <button
                 type="button"

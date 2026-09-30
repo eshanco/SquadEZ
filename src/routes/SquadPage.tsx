@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { useTeamContext } from '../contexts/TeamContext'
+import { useAttendanceStats } from '../hooks/useAttendanceStats'
 import { usePlayers } from '../hooks/usePlayers'
 import type { Player, PositionGroup } from '../types'
 import { canEdit } from '../utils/roles'
@@ -13,8 +14,19 @@ function primaryPosition(player: Player): PositionGroup | null {
 export function SquadPage() {
   const { teamId } = useParams<{ teamId: string }>()
   const { players, loading } = usePlayers(teamId)
+  const { stats } = useAttendanceStats(teamId)
   const { role } = useTeamContext()
   const editable = canEdit(role)
+
+  // Stats only cover active players, so inactive rows just show name/number.
+  const statsLine = (playerId: string) => {
+    if (!stats) return null
+    const games = stats.matches.find((m) => m.playerId === playerId)
+    const training = stats.training.find((t) => t.playerId === playerId)
+    if (!games || !training) return null
+    const trainingText = stats.totalTrainingSessions ? `${training.percent}%` : '–'
+    return `${games.attended} game${games.attended === 1 ? '' : 's'} · ${trainingText} training`
+  }
 
   const activePlayers = players.filter((p) => p.active)
   const inactivePlayers = players.filter((p) => !p.active)
@@ -71,9 +83,16 @@ export function SquadPage() {
                           {player.positions.join(', ') || 'No position set'}
                         </p>
                       </div>
-                      <span className="text-lg font-semibold text-slate-400">
-                        #{player.jerseyNumber}
-                      </span>
+                      <div className="flex items-center gap-4">
+                        {statsLine(player.id) && (
+                          <span className="text-right text-sm text-slate-500">
+                            {statsLine(player.id)}
+                          </span>
+                        )}
+                        <span className="text-lg font-semibold text-slate-400">
+                          #{player.jerseyNumber}
+                        </span>
+                      </div>
                     </Link>
                   </li>
                 ))}

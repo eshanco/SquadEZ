@@ -194,7 +194,12 @@ export function LineupsPage() {
                 .map((row) => (
                   <tr key={row.playerId} className="border-b border-slate-100 last:border-0">
                     <td className="py-1.5 pr-2 font-medium text-slate-900">
-                      {playerName(row.playerId)}
+                      <Link
+                        to={`/teams/${teamId}/squad/${row.playerId}`}
+                        className="hover:text-emerald-700 hover:underline"
+                      >
+                        {playerName(row.playerId)}
+                      </Link>
                     </td>
                     <td className="py-1.5 pr-2 text-slate-600">{row.attended}</td>
                     <td className="py-1.5 pr-2 text-slate-600">{row.percent}%</td>

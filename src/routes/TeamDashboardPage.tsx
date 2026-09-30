@@ -164,7 +164,12 @@ export function TeamDashboardPage() {
             <ol className="space-y-1.5">
               {topMinutes.map((row) => (
                 <li key={row.playerId} className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-slate-900">{playerName(row.playerId)}</span>
+                  <Link
+                    to={`/teams/${teamId}/squad/${row.playerId}`}
+                    className="font-medium text-slate-900 hover:text-emerald-700 hover:underline"
+                  >
+                    {playerName(row.playerId)}
+                  </Link>
                   <span className="text-slate-500">{row.minutesPlayed} min</span>
                 </li>
               ))}
@@ -182,7 +187,12 @@ export function TeamDashboardPage() {
             <ol className="space-y-1.5">
               {topAttendance.map((row) => (
                 <li key={row.playerId} className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-slate-900">{playerName(row.playerId)}</span>
+                  <Link
+                    to={`/teams/${teamId}/squad/${row.playerId}`}
+                    className="font-medium text-slate-900 hover:text-emerald-700 hover:underline"
+                  >
+                    {playerName(row.playerId)}
+                  </Link>
                   <span className="text-slate-500">{row.percent}%</span>
                 </li>
               ))}

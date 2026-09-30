@@ -9,6 +9,7 @@ import { ForgotPasswordPage } from './routes/ForgotPasswordPage'
 import { LineupsPage } from './routes/LineupsPage'
 import { LoginPage } from './routes/LoginPage'
 import { PlayerDetailPage } from './routes/PlayerDetailPage'
+import { PlayerSummaryPage } from './routes/PlayerSummaryPage'
 import { SignupPage } from './routes/SignupPage'
 import { SquadPage } from './routes/SquadPage'
 import { TeamDashboardPage } from './routes/TeamDashboardPage'
@@ -38,7 +39,9 @@ export default function App() {
             <Route path="/teams/:teamId" element={<TeamLayout />}>
               <Route index element={<TeamDashboardPage />} />
               <Route path="squad" element={<SquadPage />} />
-              <Route path="squad/:playerId" element={<PlayerDetailPage />} />
+              <Route path="squad/new" element={<PlayerDetailPage />} />
+              <Route path="squad/:playerId" element={<PlayerSummaryPage />} />
+              <Route path="squad/:playerId/edit" element={<PlayerDetailPage />} />
               <Route path="events/:eventId" element={<EventDetailPage />} />
               <Route path="attendance" element={<AttendancePage />} />
               <Route path="attendance/:eventId" element={<AttendancePage />} />
