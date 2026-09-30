@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTeamContext } from '../contexts/TeamContext'
 import { useAttendanceStats } from '../hooks/useAttendanceStats'
+import { useEvents } from '../hooks/useEvents'
 import { usePlayers } from '../hooks/usePlayers'
 import type { Player, PositionGroup } from '../types'
+import { exportSquadStats } from '../utils/exportSquadStats'
 import { canEdit } from '../utils/roles'
 
 const POSITION_ORDER: PositionGroup[] = ['GK', 'DEF', 'MID', 'FW']
@@ -15,8 +18,22 @@ export function SquadPage() {
   const { teamId } = useParams<{ teamId: string }>()
   const { players, loading } = usePlayers(teamId)
   const { stats } = useAttendanceStats(teamId)
-  const { role } = useTeamContext()
+  const { events, loading: eventsLoading } = useEvents(teamId)
+  const { team, role } = useTeamContext()
   const editable = canEdit(role)
+  const [exporting, setExporting] = useState(false)
+
+  const handleExport = async () => {
+    if (!teamId) return
+    setExporting(true)
+    try {
+      await exportSquadStats(teamId, team?.name ?? 'squad', players, events)
+    } catch {
+      alert("Couldn't export squad stats. Please try again.")
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // Stats only cover active players, so inactive rows just show name/number.
   const statsLine = (playerId: string) => {
@@ -47,14 +64,23 @@ export function SquadPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Squad</h1>
-        {editable && (
-          <Link
-            to={`/teams/${teamId}/squad/new`}
-            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExport}
+            disabled={exporting || loading || eventsLoading || players.length === 0}
+            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
-            Add player
-          </Link>
-        )}
+            {exporting ? 'Exporting…' : 'Export to Excel'}
+          </button>
+          {editable && (
+            <Link
+              to={`/teams/${teamId}/squad/new`}
+              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              Add player
+            </Link>
+          )}
+        </div>
       </div>
 
       {loading ? (
