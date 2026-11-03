@@ -5,6 +5,7 @@ import { useAttendanceStats } from '../hooks/useAttendanceStats'
 import { useEvents } from '../hooks/useEvents'
 import type { TeamEvent } from '../types'
 import { formatEventDateTime } from '../utils/dates'
+import { RESULT_BADGE_CLASS, resultFor } from '../utils/results'
 import { canEdit } from '../utils/roles'
 import { LineupPage } from './LineupPage'
 
@@ -23,6 +24,7 @@ function EventRow({
   highlighted: boolean
   editable: boolean
 }) {
+  const result = resultFor(event)
   return (
     <div
       id={`event-${event.id}`}
@@ -38,6 +40,18 @@ function EventRow({
         )}
       </button>
       <div className="flex shrink-0 items-center gap-3 pr-4">
+        {result && (
+          <span className="flex items-center gap-1.5">
+            <span
+              className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${RESULT_BADGE_CLASS[result.code]}`}
+            >
+              {result.code}
+            </span>
+            <span className="text-sm font-semibold text-slate-700">
+              {result.ourGoals}–{result.theirGoals}
+            </span>
+          </span>
+        )}
         {editable && (
           <Link
             to={`/teams/${teamId}/events/${event.id}`}
