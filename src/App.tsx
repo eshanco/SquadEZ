@@ -6,6 +6,7 @@ import { TeamProvider } from './contexts/TeamContext'
 import { AttendancePage } from './routes/AttendancePage'
 import { EventDetailPage } from './routes/EventDetailPage'
 import { ForgotPasswordPage } from './routes/ForgotPasswordPage'
+import { GameTemplatePage } from './routes/GameTemplatePage'
 import { LineupsPage } from './routes/LineupsPage'
 import { LoginPage } from './routes/LoginPage'
 import { PlayerDetailPage } from './routes/PlayerDetailPage'
@@ -47,6 +48,8 @@ export default function App() {
               <Route path="attendance/:eventId" element={<AttendancePage />} />
               <Route path="lineup" element={<LineupsPage />} />
               <Route path="lineup/:eventId" element={<LineupsPage />} />
+              <Route path="templates/new" element={<GameTemplatePage />} />
+              <Route path="templates/:templateId" element={<GameTemplatePage />} />
               <Route path="settings" element={<TeamSettingsPage />} />
             </Route>
           </Route>

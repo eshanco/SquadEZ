@@ -140,3 +140,21 @@ export interface Lineup {
   updatedBy: string
   updatedAt: number
 }
+
+// A reusable lineup starting point: the period structure (durations and
+// formations) plus an optional starting XI for the first period. Applied to
+// a game's lineup as a fresh draft - never linked back, so later edits to a
+// template don't touch lineups it was already applied to.
+export interface LineupTemplatePeriod {
+  durationMinutes: number
+  formationId: string
+}
+
+export interface LineupTemplate {
+  id: string
+  name: string
+  periods: LineupTemplatePeriod[]
+  startingAssignments: LineupAssignment[]
+  createdBy: string
+  createdAt: number
+}

@@ -36,3 +36,8 @@ export const formationsCollection = (teamId: string) =>
   collection(db, 'teams', teamId, 'formations')
 export const formationDoc = (teamId: string, formationId: string) =>
   doc(db, 'teams', teamId, 'formations', formationId)
+
+export const lineupTemplatesCollection = (teamId: string) =>
+  collection(db, 'teams', teamId, 'lineupTemplates')
+export const lineupTemplateDoc = (teamId: string, templateId: string) =>
+  doc(db, 'teams', teamId, 'lineupTemplates', templateId)

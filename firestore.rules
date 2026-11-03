@@ -97,6 +97,11 @@ service cloud.firestore {
         allow write: if canEdit(teamId);
       }
 
+      match /lineupTemplates/{templateId} {
+        allow read: if isTeamMember(teamId);
+        allow write: if canEdit(teamId);
+      }
+
       match /events/{eventId} {
         allow read: if isTeamMember(teamId);
         allow write: if canEdit(teamId);

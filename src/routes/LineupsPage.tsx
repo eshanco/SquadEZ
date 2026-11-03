@@ -114,13 +114,21 @@ export function LineupsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Game Management</h1>
         {editable && (
-          <Link
-            to={`/teams/${teamId}/events/new`}
-            state={{ initialType: 'game' }}
-            className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-          >
-            Add Game
-          </Link>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Link
+              to={`/teams/${teamId}/events/new`}
+              state={{ initialType: 'game' }}
+              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              Add Game
+            </Link>
+            <Link
+              to={`/teams/${teamId}/templates/new`}
+              className="rounded-md border border-emerald-600 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+            >
+              Add Game Template
+            </Link>
+          </div>
         )}
       </div>
 

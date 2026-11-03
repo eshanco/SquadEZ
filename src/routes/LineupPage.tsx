@@ -1,6 +1,6 @@
 import { addDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { type FormEvent, useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { PitchMarkings } from '../components/lineup/PitchMarkings'
 import { PitchSlot } from '../components/lineup/PitchSlot'
 import { PlayerChip } from '../components/lineup/PlayerChip'
@@ -10,8 +10,9 @@ import { useTeamContext } from '../contexts/TeamContext'
 import { formationsCollection, lineupDoc } from '../firebase/firestore'
 import { useFormations } from '../hooks/useFormations'
 import { useLineup } from '../hooks/useLineup'
+import { useLineupTemplates } from '../hooks/useLineupTemplates'
 import { usePlayers } from '../hooks/usePlayers'
-import type { LineupPeriod, Player, PositionGroup, TeamEvent } from '../types'
+import type { LineupPeriod, LineupTemplate, Player, PositionGroup, TeamEvent } from '../types'
 import { DEFAULT_FORMATIONS, formationRows, parseFormationShape } from '../utils/formations'
 import { teamJerseyColors } from '../utils/jersey'
 import { canEdit } from '../utils/roles'
@@ -70,6 +71,35 @@ function buildDisplayNames(players: Player[]): Map<string, string> {
     )
   }
   return displayNames
+}
+
+// Expands a template into a fresh set of periods. The starting team only
+// keeps players who are still available for this game, and each later
+// period inherits the previous period's assignments when it uses the same
+// formation - the same carry-over "+ Add period" does - since slot ids are
+// formation-relative and can't be carried across a formation change.
+function periodsFromTemplate(
+  template: LineupTemplate,
+  availablePlayerIds: Set<string>,
+): LineupPeriod[] {
+  const periods: LineupPeriod[] = []
+  template.periods.forEach((templatePeriod, i) => {
+    const previous = periods[i - 1]
+    const assignments =
+      i === 0
+        ? template.startingAssignments.filter((a) => availablePlayerIds.has(a.playerId))
+        : previous.formationId === templatePeriod.formationId
+          ? previous.assignments
+          : []
+    periods.push({
+      id: crypto.randomUUID(),
+      label: '',
+      durationMinutes: templatePeriod.durationMinutes,
+      formationId: templatePeriod.formationId,
+      assignments: assignments.map((a) => ({ ...a })),
+    })
+  })
+  return withComputedLabels(periods)
 }
 
 function MinutesSummaryTable({
@@ -189,6 +219,7 @@ export function LineupPage({ event }: { event: TeamEvent }) {
   const { players } = usePlayers(teamId)
   const { lineup, loading } = useLineup(teamId, eventId)
   const { formations } = useFormations(teamId)
+  const { templates } = useLineupTemplates(teamId)
 
   const editable = canEdit(role)
   const isPast = event.endAt < Date.now()
@@ -207,6 +238,8 @@ export function LineupPage({ event }: { event: TeamEvent }) {
   const [newFormationName, setNewFormationName] = useState('')
   const [newFormationShape, setNewFormationShape] = useState('')
   const [newFormationError, setNewFormationError] = useState<string | null>(null)
+
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
 
   useEffect(() => {
     if (lineup) {
@@ -387,6 +420,21 @@ export function LineupPage({ event }: { event: TeamEvent }) {
     }
   }
 
+  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId)
+
+  const applyTemplate = () => {
+    if (!selectedTemplate) return
+    const hasAssignments = periods.some((p) => p.assignments.length > 0)
+    if (
+      hasAssignments &&
+      !window.confirm(`Replace the current lineup with the "${selectedTemplate.name}" template?`)
+    ) {
+      return
+    }
+    setPeriods(periodsFromTemplate(selectedTemplate, new Set(availablePlayers.map((p) => p.id))))
+    setSelectedPeriodIndex(0)
+  }
+
   const handleSave = async () => {
     if (!teamId || !eventId || !user) return
     setSaving(true)
@@ -562,6 +610,42 @@ export function LineupPage({ event }: { event: TeamEvent }) {
         <h1 className="text-2xl font-semibold text-slate-900">Lineup</h1>
         {isPast && (
           <span className="text-xs uppercase tracking-wide text-amber-600">Editing played game</span>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Game template</label>
+          <select
+            value={selectedTemplateId}
+            onChange={(e) => setSelectedTemplateId(e.target.value)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">
+              {templates.length === 0 ? 'No templates yet' : 'Choose a template…'}
+            </option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={applyTemplate}
+          disabled={!selectedTemplate}
+          className="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+        >
+          Load
+        </button>
+        {selectedTemplate && (
+          <Link
+            to={`/teams/${teamId}/templates/${selectedTemplate.id}`}
+            className="px-1 py-2 text-sm text-slate-500 hover:text-slate-700 hover:underline"
+          >
+            Edit template
+          </Link>
         )}
       </div>
 
